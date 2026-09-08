@@ -1,0 +1,23 @@
+name: hk-equity-lab
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.11
+  - pandas
+  - numpy
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - jupyterlab
+  - openpyxl
+  - pyyaml
+  - statsmodels
+  - pip
+  - pip:
+      - yfinance
+      - lightgbm
+      - arch
+      - tensorflow

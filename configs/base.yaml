@@ -1,0 +1,44 @@
+project_name: hk_equity_forecasting_portfolio
+
+tickers:
+  "9988.HK": "Alibaba Group Holding"
+  "0066.HK": "MTR Corporation"
+  "1398.HK": "ICBC"
+  "3988.HK": "Bank of China"
+  "0981.HK": "SMIC"
+  "0005.HK": "HSBC Holdings"
+  "1810.HK": "Xiaomi-W"
+  "0016.HK": "Sun Hung Kai Properties"
+  "1113.HK": "CK Asset Holdings"
+  "0700.HK": "Tencent Holdings"
+
+market_ticker: "^HSI"
+
+data:
+  source: yfinance
+  price_field: Close
+  auto_adjust: false
+  start_date: "2020-01-01"
+
+periods:
+  train_start: "2020-01-01"
+  train_end: "2024-12-31"
+  validation_start: "2025-01-01"
+  validation_end: "2025-12-31"
+  test_start: "2026-01-01"
+  test_end: "2026-08-31"
+
+forecast:
+  horizon_trading_days: 5
+  weekly_frequency: "W-FRI"
+
+paths:
+  raw_data: "data/raw"
+  interim_data: "data/interim"
+  processed_data: "data/processed"
+  models: "models"
+  forecasts: "outputs/forecasts"
+  backtests: "outputs/backtests"
+  submissions: "outputs/submissions"
+  figures: "reports/figures"
+  tables: "reports/tables"

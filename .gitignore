@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.conda/
+conda-env/
+
+# IDE and operating system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+secrets.yaml
+
+# Raw and generated data
+data/raw/*
+data/interim/*
+data/processed/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+# Saved models
+models/*
+!models/.gitkeep
+*.keras
+*.h5
+*.joblib
+*.pkl
+
+# Generated outputs
+outputs/*
+!outputs/.gitkeep
+
+# Temporary plots
+reports/figures/tmp/
