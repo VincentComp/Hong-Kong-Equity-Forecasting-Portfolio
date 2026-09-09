@@ -1,0 +1,6 @@
+model:
+  name: moving_average
+  version: "1.0"
+
+parameters:
+  lookback_weeks: 4

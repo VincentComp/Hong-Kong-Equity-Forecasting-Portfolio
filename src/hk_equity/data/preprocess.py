@@ -1,78 +1,84 @@
+from __future__ import annotations
+
 import pandas as pd
 
 
 def to_weekly_close(
-    daily_close: pd.DataFrame
+    daily_close: pd.DataFrame,
+    weekly_frequency: str = "W-FRI",
 ) -> pd.DataFrame:
-    """Resamples daily close prices to a weekly Friday frequency.
+    """Resample daily Close prices to weekly close prices.
 
-    Aggregates daily equity price data by extracting the last available trading
-    day price within each calendar week ending on Friday (`W-FRI`). If Friday is
-    a trading holiday, the last preceding valid trading price of that week is used.
+    For ``W-FRI``, each observation represents the final available trading-day
+    Close within the Monday-to-Friday period. If Friday is a trading holiday,
+    pandas keeps the final available Close earlier in that same week.
 
     Args:
-        daily_close (pd.DataFrame): Daily close prices with a DatetimeIndex 
-            and ticker symbols as column headers.
+        daily_close: Daily Close prices with a DatetimeIndex and ticker columns.
+        weekly_frequency: Pandas resample frequency. Default is Friday-ending
+            weeks, ``W-FRI``.
 
     Returns:
-        pd.DataFrame: Weekly close prices resampled to Friday frequencies, 
-            with fully empty holiday/closure weeks dropped.
+        Weekly Close prices, excluding weeks where all ticker prices are missing.
     """
+
     weekly_close = (
         daily_close
-        .resample("W-FRI")  #Resample Monday-Friday as a group
-        .last()             #Get the last trading day in the week
+        .resample(weekly_frequency) #Resample days as a group (e.g. Monday-Friday)
+        .last()                     #Get the last trading day in the week
     )
+    
+    return weekly_close.dropna(how="all")
 
-    return weekly_close.dropna(how="all") #remove the entire-empty row (e.g. New Year Holiday)
 
-
-#If previous = NA, then let the result be NA
-#If pass weekly close, then it would become weekly return
 def calculate_returns(
-    prices: pd.DataFrame
+    prices: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Calculates percentage price returns between consecutive time periods.
+    """Calculate simple percentage returns.
 
-    Computes the simple period-over-period percentage change:
-        Return_t = (Price_t - Price_{t-1}) / Price_{t-1}
+    Formula:
+        return_t = (price_t / price_(t-1)) - 1
+
+    This function works for daily prices or weekly prices.
 
     Args:
-        prices (pd.DataFrame): Historical price time series (daily or weekly) 
-            with a DatetimeIndex.
+        prices: Price table with a DatetimeIndex.
 
     Returns:
-        pd.DataFrame: Percentage returns for each ticker. The initial row 
-            will contain NaN values due to lag differencing.
+        Period-over-period percentage returns. The first row is NaN because
+        no prior price exists.
     """
-    return prices.pct_change(fill_method=None) 
+    #If previous = NA, then let the result be NA
+#If pass weekly close, then it would become weekly return
+    return prices.pct_change(fill_method=None)
 
 
-def future_weekly_return_target(
+def future_return_target(
     daily_close: pd.DataFrame,
-    horizon_days: int = 5,
+    horizon_trading_days: int = 5,
 ) -> pd.DataFrame:
-    """Calculates forward multi-day return targets for supervised learning.
+    """Calculate a future multi-trading-day return target.
 
-    Computes the future percentage price change over a specified holding horizon:
-        Future_Return_t = (Price_{t + horizon} / Price_t) - 1
+    Formula:
+        future_return_t = (price_(t+horizon) / price_t) - 1
 
-    This shifts future prices backward to pair current-day feature vectors (X_t)
-    with forward-looking targets (y_t) without causing historical data leakage.
+    This is intended for future supervised-learning models such as Ridge,
+    LightGBM, and LSTM. The final ``horizon_trading_days`` rows are NaN
+    because future prices are unavailable.
 
     Args:
-        daily_close (pd.DataFrame): Daily close prices with a DatetimeIndex.
-        horizon_days (int, optional): The forward holding period in trading days. 
-            Defaults to 5 (representing 1 trading week).
+        daily_close: Daily Close-price table.
+        horizon_trading_days: Forecast horizon in trading days. Five is the
+            default approximation of one trading week.
 
     Returns:
-        pd.DataFrame: Forward return targets. The last `horizon_days` rows 
-            will contain NaN values as future data is not yet available.
+        Forward return target table.
     """
+
     future_return = (
-        daily_close.shift(-horizon_days)    #5 days later
-        / daily_close                       #today
-        - 1                                 #Get the future return 
+        daily_close.shift(-horizon_trading_days)    #5 days later
+        / daily_close                               #today
+        - 1                                         #get the future return
     )
 
     return future_return

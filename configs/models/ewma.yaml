@@ -1,0 +1,6 @@
+model:
+  name: ewma
+  version: "1.0"
+
+parameters:
+  span_weeks: 4

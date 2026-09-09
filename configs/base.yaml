@@ -12,13 +12,19 @@ tickers:
   "1113.HK": "CK Asset Holdings"
   "0700.HK": "Tencent Holdings"
 
-market_ticker: "^HSI"
+market:
+  ticker: "^HSI"
+  name: "Hang Seng Index"
 
 data:
-  source: yfinance
-  price_field: Close
+  source: "yfinance"
+  price_field: "Close"
   auto_adjust: false
   start_date: "2020-01-01"
+
+forecast:
+  horizon_trading_days: 5
+  weekly_frequency: "W-FRI"
 
 periods:
   train_start: "2020-01-01"
@@ -27,10 +33,6 @@ periods:
   validation_end: "2025-12-31"
   test_start: "2026-01-01"
   test_end: "2026-08-31"
-
-forecast:
-  horizon_trading_days: 5
-  weekly_frequency: "W-FRI"
 
 paths:
   raw_data: "data/raw"
