@@ -152,6 +152,7 @@ def main() -> None:
     )
 
     model_key = model_config["model"]["name"]
+    model_run_id = model_config["model"]["run_id"]
 
     model_label = get_model_label(
         model_config=model_config,
@@ -182,6 +183,7 @@ def main() -> None:
         ),
         "model_config_path": args.model_config,
         "model_key": model_key,
+        "model_run_id": model_run_id,
         "model_version": model_config["model"]["version"],
         "model_parameters": model_config.get("parameters", {}),
         "requested_data_cutoff": (
@@ -211,7 +213,7 @@ def main() -> None:
         forecast_df=forecast_table,
         metadata=metadata,
         forecast_date=forecast_date,
-        model_key=model_key,
+        model_key=model_run_id,
         forecasts_dir=base_config["paths"]["forecasts"],
         allow_overwrite=args.overwrite,
     )
@@ -220,7 +222,7 @@ def main() -> None:
     submission_path = export_submission_file(
         forecast_df=forecast_table,
         forecast_date=forecast_date,
-        model_key=model_key,
+        model_key=model_run_id,
         submissions_dir=base_config["paths"]["submissions"],
         allow_overwrite=args.overwrite,
     )

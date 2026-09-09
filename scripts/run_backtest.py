@@ -180,6 +180,7 @@ def main() -> None:
     )
 
     model_key = model_config["model"]["name"]
+    model_run_id = model_config["model"]["run_id"]
     model_label = get_model_label(model_config)
 
     # Use command-line dates if supplied; otherwise use official test period.
@@ -245,6 +246,7 @@ def main() -> None:
         model_label=model_label,
         model_key=model_key,
     )
+    prediction_table["model_run_id"] = model_run_id
 
     # Calculate model metrics separately for each stock.
     metrics_rows = []
@@ -264,6 +266,7 @@ def main() -> None:
             "company": base_config["tickers"][ticker],
             "model": model_label,
             "model_key": model_key,
+            "model_run_id": model_run_id,
             **ticker_metrics,
         })
 
@@ -282,6 +285,11 @@ def main() -> None:
     overall_metrics_table = pd.DataFrame([{
         "model": model_label,
         "model_key": model_key,
+        "model_run_id": model_run_id,
+        "model_version": model_config["model"]["version"],
+        "model_parameters": str(
+            model_config.get("parameters", {})
+        ),
         "evaluation_start": evaluation_start,
         "evaluation_end": evaluation_end,
         **overall_metrics,
@@ -306,7 +314,7 @@ def main() -> None:
 
     output_dir = (
         Path(base_config["paths"]["backtests"])
-        / model_key
+        / model_run_id
         / evaluation_label
     )
 
