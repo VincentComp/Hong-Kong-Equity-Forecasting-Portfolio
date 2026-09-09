@@ -1,5 +1,6 @@
 model:
-  name: zero
+  name: "zero"
   version: "1.0"
+  run_id: "zero_v1"
 
 parameters: {}

@@ -1,6 +1,7 @@
 model:
-  name: moving_average
+  name: "moving_average"
   version: "1.0"
+  run_id: "ma_4w_v1"
 
 parameters:
   lookback_weeks: 4
