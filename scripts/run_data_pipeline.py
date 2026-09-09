@@ -5,12 +5,12 @@ import yaml
 from src.hk_equity.data.download import download_close_prices
 
 
-CONFIG_PATH = Path("configs/base.yaml")
+CONFIG_PATH = Path("configs/base.yaml") #Note: this is using default setting
 
 
 def main():
     with open(CONFIG_PATH, "r") as file:
-        config = yaml.safe_load(file)
+        config = yaml.safe_load(file) #load the yaml file
 
     tickers = list(config["tickers"].keys())
 

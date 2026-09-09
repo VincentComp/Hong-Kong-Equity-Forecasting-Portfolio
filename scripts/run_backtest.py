@@ -19,8 +19,9 @@ from src.hk_equity.evaluation.metrics import (
 
 def main():
     with open("configs/base.yaml", "r") as file:
-        config = yaml.safe_load(file)
+        config = yaml.safe_load(file) #load the yaml again
 
+    #Get the clsoe price -> weekly close, weekly returns
     daily_close = pd.read_csv(
         "data/raw/latest_daily_close.csv",
         index_col="Date",
@@ -30,6 +31,8 @@ def main():
     weekly_close = to_weekly_close(daily_close)
     weekly_returns = calculate_returns(weekly_close)
 
+    #Do the focast from 2020 - 2026
+    #The .shift(1) inside the model has prevent data leakage issue
     forecasts = {
         "Zero Return": zero_return_forecast(weekly_returns),
         "4-Week Moving Average": moving_average_forecast(
@@ -42,18 +45,19 @@ def main():
         ),
     }
 
+    #Set the testing period (i.e. 2025 Jan to Aug)
     test_start = config["periods"]["test_start"]
     test_end = config["periods"]["test_end"]
 
-    weekly_test = weekly_returns.loc[test_start:test_end]
+    weekly_test = weekly_returns.loc[test_start:test_end] #actual
 
     result_rows = []
 
-    for model_name, forecast_table in forecasts.items():
+    for model_name, forecast_table in forecasts.items(): #loop the model
         forecast_test = forecast_table.loc[test_start:test_end]
 
-        for ticker in weekly_returns.columns:
-            metrics = forecast_metrics(
+        for ticker in weekly_returns.columns:   #loop for each stock
+            metrics = forecast_metrics(         #call the metric function
                 actual=weekly_test[ticker],
                 predicted=forecast_test[ticker],
             )
@@ -66,6 +70,7 @@ def main():
 
     results = pd.DataFrame(result_rows)
 
+    #Output as an csv
     output_dir = Path(config["paths"]["backtests"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -74,6 +79,7 @@ def main():
         index=False,
     )
 
+    #print in terminal
     print(
         results
         .sort_values(["model", "MAE"])
