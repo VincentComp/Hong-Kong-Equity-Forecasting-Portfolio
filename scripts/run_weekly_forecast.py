@@ -68,7 +68,7 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument(
         "--model-config",
-        default="configs/models/moving_average.yaml",
+        default="configs/models/ma_4w.yaml",
         help="Path to one model-specific configuration YAML.",
     )
 

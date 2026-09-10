@@ -8,10 +8,17 @@ Examples:
         --end 2025-12-31 \
         --output-name model_summary_validation
 
+    python -m scripts.run_experiment_suite \
+        --start 2025-01-01 \
+        --end 2025-12-31 \
+        --output-name model_summary_validation \
+        --run-ids ma_4w_v1 ewma_span4_v1
+
 This script:
-1. Checks whether each configured model already has a backtest result.
-2. Runs only missing backtests.
-3. Builds one summary table from the resulting CSV files.
+1. Discovers all model configs in configs/models/*.yaml (or filtered by --run-ids).
+2. Checks whether each model already has a backtest result.
+3. Runs only missing backtests.
+4. Builds one summary table from the resulting CSV files.
 
 It does not overwrite existing model results unless --force is used.
 """
@@ -19,6 +26,7 @@ It does not overwrite existing model results unless --force is used.
 from __future__ import annotations
 
 import argparse
+from glob import glob
 from pathlib import Path
 import subprocess
 import sys
@@ -26,11 +34,34 @@ import sys
 from src.hk_equity.utils.config import load_yaml
 
 
-DEFAULT_MODEL_CONFIGS = [
-    "configs/models/zero.yaml",
-    "configs/models/moving_average.yaml",
-    "configs/models/ewma.yaml",
-]
+def discover_model_configs(
+    models_directory: str = "configs/models",
+    selected_run_ids: list[str] | None = None,
+) -> list[str]:
+    """Discover model YAML configs, optionally filtered by run_id."""
+
+    all_yaml_files = sorted(
+        glob(f"{models_directory}/*.yaml")
+    )
+
+    if selected_run_ids is None:
+        return all_yaml_files
+
+    filtered = []
+
+    for yaml_path in all_yaml_files:
+        model_config = load_yaml(yaml_path)
+        run_id = model_config["model"]["run_id"]
+
+        if run_id in selected_run_ids:
+            filtered.append(yaml_path)
+
+    if not filtered:
+        raise ValueError(
+            f"No model configs matched run_ids: {selected_run_ids}"
+        )
+
+    return filtered
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -79,6 +110,17 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help=(
             "Re-run all backtests even when output files already exist."
+        ),
+    )
+
+    parser.add_argument(
+        "--run-ids",
+        nargs="*",
+        default=None,
+        help=(
+            "Optional model run_ids to filter which models to run. "
+            "Matches against model['model']['run_id']. "
+            "If omitted, runs all *.yaml in configs/models/."
         ),
     )
 
@@ -197,12 +239,18 @@ def main() -> None:
         base_config["paths"]["backtests"]
     )
 
+    model_config_paths = discover_model_configs(
+        models_directory="configs/models",
+        selected_run_ids=args.run_ids,
+    )
+
     print(
         "\nExperiment Suite"
         f"\nEvaluation period: {evaluation_label}"
+        f"\nModels to check: {len(model_config_paths)}"
     )
 
-    for model_config_path in DEFAULT_MODEL_CONFIGS:
+    for model_config_path in model_config_paths:
         model_config = load_yaml(
             model_config_path
         )
