@@ -1,0 +1,18 @@
+
+model:
+  name: general_regression
+  version: "v1"
+  run_id: ridge_weekly_v1
+
+parameters:
+  estimator: ridge
+  alpha: 1.0
+  feature_set: weekly_v1
+  standardize: true
+  polynomial_degree: 1
+  fit_intercept: true
+  max_iter: 10000
+  minimum_training_weeks: 60
+  include_ratio_features: false
+  include_cross_sectional_features: true
+  winsorize_features: false

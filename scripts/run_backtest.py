@@ -21,8 +21,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from src.hk_equity.data.preprocess import (
     calculate_returns,
@@ -87,7 +87,7 @@ def parse_arguments() -> argparse.Namespace:
 def load_daily_close_prices(
     raw_data_directory: str,
 ) -> pd.DataFrame:
-    """Load the latest saved 10-stock daily Close-price table."""
+    """Load the latest saved daily Close-price table."""
 
     daily_close_path = (
         Path(raw_data_directory)
@@ -114,6 +114,84 @@ def load_daily_close_prices(
     return daily_close
 
 
+def prepare_portfolio_weekly_returns(
+    daily_close: pd.DataFrame,
+    portfolio_tickers: list[str],
+    weekly_frequency: str,
+) -> pd.DataFrame:
+    """Create weekly returns using portfolio tickers only."""
+
+    missing_tickers = [
+        ticker
+        for ticker in portfolio_tickers
+        if ticker not in daily_close.columns
+    ]
+
+    if missing_tickers:
+        raise ValueError(
+            "Missing portfolio ticker columns: "
+            f"{missing_tickers}"
+        )
+
+    portfolio_daily_close = daily_close[
+        portfolio_tickers
+    ].copy()
+
+    portfolio_weekly_close = to_weekly_close(
+        daily_close=portfolio_daily_close,
+        weekly_frequency=weekly_frequency,
+    )
+
+    portfolio_weekly_returns = calculate_returns(
+        portfolio_weekly_close
+    ).dropna(how="all")
+
+    if portfolio_weekly_returns.empty:
+        raise ValueError(
+            "No portfolio weekly returns could be calculated."
+        )
+
+    return portfolio_weekly_returns
+
+
+def prepare_benchmark_weekly_returns(
+    daily_close: pd.DataFrame,
+    benchmark_ticker: str,
+    weekly_frequency: str,
+) -> pd.Series:
+    """Create weekly benchmark returns, normally using the HSI."""
+
+    if benchmark_ticker not in daily_close.columns:
+        raise ValueError(
+            "Missing benchmark column in daily data: "
+            f"{benchmark_ticker}"
+        )
+
+    benchmark_daily_close = daily_close[
+        benchmark_ticker
+    ].dropna().to_frame()
+
+    benchmark_weekly_close = to_weekly_close(
+        daily_close=benchmark_daily_close,
+        weekly_frequency=weekly_frequency,
+    )
+
+    benchmark_weekly_returns = (
+        calculate_returns(benchmark_weekly_close)
+        .iloc[:, 0]
+        .dropna()
+    )
+
+    if benchmark_weekly_returns.empty:
+        raise ValueError(
+            "No benchmark weekly returns could be calculated."
+        )
+
+    benchmark_weekly_returns.name = benchmark_ticker
+
+    return benchmark_weekly_returns
+
+
 def create_prediction_table(
     actual_returns: pd.DataFrame,
     predicted_returns: pd.DataFrame,
@@ -123,10 +201,39 @@ def create_prediction_table(
 ) -> pd.DataFrame:
     """Convert wide actual/predicted return tables into a long audit table."""
 
+    portfolio_tickers = list(tickers.keys())
+
+    unexpected_actual = [
+        ticker
+        for ticker in actual_returns.columns
+        if ticker not in portfolio_tickers
+    ]
+
+    unexpected_predicted = [
+        ticker
+        for ticker in predicted_returns.columns
+        if ticker not in portfolio_tickers
+    ]
+
+    if unexpected_actual or unexpected_predicted:
+        raise ValueError(
+            "Benchmark or unexpected ticker entered the prediction table. "
+            f"Unexpected actual columns: {unexpected_actual}; "
+            f"unexpected predicted columns: {unexpected_predicted}"
+        )
+
+    actual_returns = actual_returns.reindex(
+        columns=portfolio_tickers
+    )
+
+    predicted_returns = predicted_returns.reindex(
+        columns=portfolio_tickers,
+    )
+
     records = []
 
     for week_ending in actual_returns.index:  #for every week
-        for ticker in actual_returns.columns: #for every ticker
+        for ticker in portfolio_tickers: #for every ticker
             actual_return = actual_returns.at[
                 week_ending,
                 ticker,
@@ -202,22 +309,34 @@ def main() -> None:
         raw_data_directory=base_config["paths"]["raw_data"],
     )
 
-    weekly_close = to_weekly_close(
+    portfolio_tickers = list(
+        base_config["tickers"].keys()
+    )
+
+    weekly_frequency = base_config["forecast"]["weekly_frequency"]
+
+    # The downloaded CSV may also contain the HSI benchmark. The benchmark is
+    # reserved for advanced-model features and is never a portfolio target.
+    weekly_returns = prepare_portfolio_weekly_returns(
         daily_close=daily_close,
-        weekly_frequency=base_config["forecast"]["weekly_frequency"],
+        portfolio_tickers=portfolio_tickers,
+        weekly_frequency=weekly_frequency,
     )
 
-    weekly_returns = calculate_returns(
-        weekly_close
+    benchmark_weekly_returns = prepare_benchmark_weekly_returns(
+        daily_close=daily_close,
+        benchmark_ticker=base_config["market"]["ticker"],
+        weekly_frequency=weekly_frequency,
     )
 
-    # Historical forecast table: model functions are shifted internally,
-    # ensuring the forecast at week t does not use the realised return at t.
+    # Historical forecast table: model functions are shifted internally for
+    # baseline models. Regression uses an expanding window and only earlier
+    # data, with the benchmark supplied separately from portfolio returns.
     all_predicted_returns = get_backtest_forecasts(
         weekly_returns=weekly_returns,
+        benchmark_returns=benchmark_weekly_returns,
         model_config=model_config,
     )
-
 
     #only get use the data within teesting period for test
     actual_returns = weekly_returns.loc[
@@ -233,7 +352,6 @@ def main() -> None:
             f"No actual weekly returns in evaluation period: "
             f"{evaluation_start} to {evaluation_end}"
         )
-
 
     # Remove dates with no valid prediction for every stock.
     valid_dates = predicted_returns.dropna(
@@ -252,8 +370,6 @@ def main() -> None:
         model_key=model_key,
     )
     prediction_table["model_run_id"] = model_run_id
-
-
 
     # Calculate model metrics separately for each stock.
     metrics_rows = []
@@ -282,7 +398,6 @@ def main() -> None:
         .reset_index(drop=True)
     )
 
-
     #Build the Evaluation metric for the entire portfolio
     overall_metrics = forecast_metrics(
         actual=prediction_table["actual_weekly_return"],
@@ -301,8 +416,6 @@ def main() -> None:
         "evaluation_end": evaluation_end,
         **overall_metrics,
     }])
-
-
 
     # Evaluate whether the model ranks relatively stronger stocks correctly.
     rank_ic_by_week = calculate_rank_ic_by_week(

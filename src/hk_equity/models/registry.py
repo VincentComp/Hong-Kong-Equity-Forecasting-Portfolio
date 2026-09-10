@@ -22,6 +22,8 @@ model does not require changing ``get_model_label()``.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 
 from src.hk_equity.models.baseline import (
@@ -29,11 +31,14 @@ from src.hk_equity.models.baseline import (
     moving_average_forecast,
     zero_return_forecast,
 )
+from src.hk_equity.models.general_regression import (
+    get_regression_forecast,
+)
 
 
 def predict_zero(
     weekly_returns: pd.DataFrame,
-    parameters: dict,
+    parameters: dict[str, Any],
 ) -> pd.Series:
     """Predict a 0% next-week return for every stock."""
 
@@ -41,16 +46,24 @@ def predict_zero(
         data=0.0,
         index=weekly_returns.columns,
         dtype=float,
+        name="predicted_weekly_return",
     )
 
 
 def predict_moving_average(
     weekly_returns: pd.DataFrame,
-    parameters: dict,
+    parameters: dict[str, Any],
 ) -> pd.Series:
     """Predict next-week returns from the recent simple average return."""
 
-    lookback_weeks = parameters["lookback_weeks"]
+    lookback_weeks = int(
+        parameters["lookback_weeks"]
+    )
+
+    if lookback_weeks <= 0:
+        raise ValueError(
+            "lookback_weeks must be greater than zero."
+        )
 
     if len(weekly_returns) < lookback_weeks:
         raise ValueError(
@@ -58,30 +71,64 @@ def predict_moving_average(
             "completed weekly returns."
         )
 
-    return weekly_returns.tail(lookback_weeks).mean()
+    return pd.Series(
+        weekly_returns.tail(lookback_weeks).mean(),
+        name="predicted_weekly_return",
+    )
 
 
 def predict_ewma(
     weekly_returns: pd.DataFrame,
-    parameters: dict,
+    parameters: dict[str, Any],
 ) -> pd.Series:
     """Predict next-week returns from an exponentially weighted average."""
 
-    span_weeks = parameters["span_weeks"]
+    span_weeks = int(
+        parameters["span_weeks"]
+    )
+
+    if span_weeks <= 0:
+        raise ValueError(
+            "span_weeks must be greater than zero."
+        )
 
     if len(weekly_returns) < span_weeks:
         raise ValueError(
             f"EWMA needs at least {span_weeks} completed weekly returns."
         )
 
-    return (
+    return pd.Series(
         weekly_returns
         .ewm(span=span_weeks, adjust=False)
         .mean()
-        .iloc[-1]
+        .iloc[-1],
+        name="predicted_weekly_return",
     )
     #a = 2 / (1+span)
     #EWMA(t) = a*R(t) + (1-a)*EWMA(t-1)
+
+
+def _get_model_name(
+    model_config: dict[str, Any],
+) -> str:
+    """Read and normalize the selected model name."""
+
+    try:
+        model_name = model_config["model"]["name"]
+    except KeyError as error:
+        raise KeyError(
+            "Model config must contain model.name."
+        ) from error
+
+    return str(model_name).lower()
+
+
+def _get_available_model_names(
+    registry: dict[str, object],
+) -> str:
+    """Return sorted model names for clear error messages."""
+
+    return ", ".join(sorted(registry.keys()))
 
 
 #==================================================================================
@@ -107,15 +154,37 @@ BACKTEST_MODEL_REGISTRY = {
 
 def get_model_forecast(
     weekly_returns: pd.DataFrame,
-    model_config: dict,
+    model_config: dict[str, Any],
+    benchmark_returns: pd.Series | None = None,
 ) -> pd.Series:
-    """Generate one next-week predicted return for every stock."""
+    """Generate one next-week predicted return for every stock.
 
-    model_name = model_config["model"]["name"]
+    Baseline models use only portfolio weekly returns. The general regression
+    model additionally uses benchmark returns, normally HSI weekly returns.
+    """
+
+    model_name = _get_model_name(model_config)
     parameters = model_config.get("parameters", {})
 
+    if model_name == "general_regression":
+        if benchmark_returns is None:
+            raise ValueError(
+                "benchmark_returns is required for general_regression."
+            )
+
+        return get_regression_forecast(
+            weekly_returns=weekly_returns,
+            benchmark_returns=benchmark_returns,
+            parameters=parameters,
+        )
+
     if model_name not in LIVE_MODEL_REGISTRY:
-        available_models = ", ".join(LIVE_MODEL_REGISTRY.keys())
+        available_models = _get_available_model_names(
+            {
+                **LIVE_MODEL_REGISTRY,
+                "general_regression": get_regression_forecast,
+            }
+        )
 
         raise ValueError(
             f"Unknown live model name: '{model_name}'. "
@@ -132,15 +201,38 @@ def get_model_forecast(
 
 def get_backtest_forecasts(
     weekly_returns: pd.DataFrame,
-    model_config: dict,
+    model_config: dict[str, Any],
+    benchmark_returns: pd.Series | None = None,
 ) -> pd.DataFrame:
-    """Generate historical one-step-ahead forecasts for every stock and week."""
+    """Generate historical one-step-ahead forecasts for every stock and week.
 
-    model_name = model_config["model"]["name"]
+    Baseline backtests use the existing shifted DataFrame functions. General
+    regression uses an expanding-window walk-forward procedure so each target
+    week is predicted only from earlier observations.
+    """
+
+    model_name = _get_model_name(model_config)
     parameters = model_config.get("parameters", {})
 
+    if model_name == "general_regression":
+        if benchmark_returns is None:
+            raise ValueError(
+                "benchmark_returns is required for general_regression."
+            )
+
+        return _get_regression_backtest_forecasts(
+            weekly_returns=weekly_returns,
+            benchmark_returns=benchmark_returns,
+            parameters=parameters,
+        )
+
     if model_name not in BACKTEST_MODEL_REGISTRY:
-        available_models = ", ".join(BACKTEST_MODEL_REGISTRY.keys())
+        available_models = _get_available_model_names(
+            {
+                **BACKTEST_MODEL_REGISTRY,
+                "general_regression": get_regression_forecast,
+            }
+        )
 
         raise ValueError(
             f"Unknown backtest model name: '{model_name}'. "
@@ -153,6 +245,56 @@ def get_backtest_forecasts(
         weekly_returns=weekly_returns,
         parameters=parameters,
     )
+
+
+def _get_regression_backtest_forecasts(
+    weekly_returns: pd.DataFrame,
+    benchmark_returns: pd.Series,
+    parameters: dict[str, Any],
+) -> pd.DataFrame:
+    """Generate regression forecasts using an expanding training window."""
+
+    predictions = pd.DataFrame(
+        index=weekly_returns.index,
+        columns=weekly_returns.columns,
+        dtype=float,
+    )
+
+    minimum_training_weeks = int(
+        parameters.get("minimum_training_weeks", 60)
+    )
+
+    if minimum_training_weeks <= 0:
+        raise ValueError(
+            "minimum_training_weeks must be greater than zero."
+        )
+
+    for target_week in weekly_returns.index:
+        # Use only weeks strictly before the target week. This is the
+        # expanding-window rule that prevents target-week leakage.
+        history_returns = weekly_returns.loc[
+            weekly_returns.index < target_week
+        ]
+
+        history_benchmark = benchmark_returns.reindex(
+            history_returns.index
+        )
+
+        if len(history_returns) < minimum_training_weeks:
+            continue
+
+        prediction = get_regression_forecast(
+            weekly_returns=history_returns,
+            benchmark_returns=history_benchmark,
+            parameters=parameters,
+        )
+
+        predictions.loc[
+            target_week,
+            prediction.index,
+        ] = prediction
+
+    return predictions
 
 
 def get_model_label(

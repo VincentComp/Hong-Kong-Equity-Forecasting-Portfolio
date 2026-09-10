@@ -40,6 +40,7 @@ from src.hk_equity.utils.io import (
     save_forecast_run,
 )
 
+
 #pass the input
 def parse_arguments() -> argparse.Namespace:
     """Read command-line settings for one forecast run."""
@@ -87,7 +88,7 @@ def parse_arguments() -> argparse.Namespace:
 def load_daily_close_prices(
     raw_data_directory: str,
 ) -> pd.DataFrame:
-    """Load the latest saved 10-stock daily Close-price table."""
+    """Load the latest saved daily Close-price table."""
 
     daily_close_path = (
         Path(raw_data_directory)
@@ -114,6 +115,27 @@ def load_daily_close_prices(
     return daily_close
 
 
+def prepare_portfolio_daily_close(
+    daily_close: pd.DataFrame,
+    portfolio_tickers: list[str],
+) -> pd.DataFrame:
+    """Return only the portfolio stocks used for baseline forecasting."""
+
+    missing_tickers = [
+        ticker
+        for ticker in portfolio_tickers
+        if ticker not in daily_close.columns
+    ]
+
+    if missing_tickers:
+        raise ValueError(
+            "Missing portfolio ticker columns: "
+            f"{missing_tickers}"
+        )
+
+    return daily_close[portfolio_tickers].copy()
+
+
 def main() -> None:
     """Create, save, and display one model's next-week forecast."""
 
@@ -130,22 +152,33 @@ def main() -> None:
         raw_data_directory=base_config["paths"]["raw_data"],
     )
 
+    portfolio_tickers = list(
+        base_config["tickers"].keys()
+    )
+
+    # The raw CSV may contain ^HSI. HSI is a benchmark for future advanced
+    # features, not a stock to forecast or submit.
+    portfolio_daily_close = prepare_portfolio_daily_close(
+        daily_close=daily_close,
+        portfolio_tickers=portfolio_tickers,
+    )
+
     # Use the requested cutoff, or latest available price date by default.
     data_cutoff = (
         pd.Timestamp(args.as_of)
         if args.as_of is not None
-        else daily_close.index.max()
+        else portfolio_daily_close.index.max()
     )
 
     # Build one common context used by every forecasting model.
     context = build_forecast_context(
-        daily_close=daily_close,
+        daily_close=portfolio_daily_close,
         data_cutoff=data_cutoff,
         weekly_frequency=base_config["forecast"]["weekly_frequency"],
         horizon_trading_days=base_config["forecast"]["horizon_trading_days"],
     )
 
-    # Generate one predicted next-week return per ticker.
+    # Generate one predicted next-week return per portfolio ticker.
     predicted_return = get_model_forecast(
         weekly_returns=context.weekly_returns,
         model_config=model_config,
