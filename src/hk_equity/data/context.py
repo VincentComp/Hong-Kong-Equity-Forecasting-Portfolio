@@ -18,11 +18,11 @@ class ForecastContext:
     weekly_close: pd.DataFrame
     weekly_returns: pd.DataFrame
 
-    data_cutoff: pd.Timestamp
-    latest_data_date: pd.Timestamp
-    latest_completed_week: pd.Timestamp
+    data_cutoff: pd.Timestamp           #--as-of date (theorectical last date set by the user)
+    latest_data_date: pd.Timestamp      #actual last day in the dataset
+    latest_completed_week: pd.Timestamp #actual last day (in a complete week) in the dataset
 
-    target_week_start: pd.Timestamp
+    target_week_start: pd.Timestamp     #forecasting period
     target_week_end: pd.Timestamp
 
 
@@ -52,7 +52,7 @@ def build_forecast_context(
     """
 
     # Keep only data that was available on or before the forecast cutoff date.
-    usable_daily_close = (
+    usable_daily_close = (#get the dates before deadline
         daily_close
         .loc[:data_cutoff]
         .dropna(how="all")
@@ -62,6 +62,7 @@ def build_forecast_context(
         raise ValueError(
             "No daily Close prices exist on or before the requested data cutoff."
         )
+
 
     # This may differ from data_cutoff if the cutoff is a weekend or public holiday.
     latest_data_date = usable_daily_close.index.max()
@@ -87,6 +88,8 @@ def build_forecast_context(
         )
 
     latest_completed_week = weekly_returns.index.max()
+
+
 
     # The Project 1 target is the next Friday-ending week.
     target_week_end = (

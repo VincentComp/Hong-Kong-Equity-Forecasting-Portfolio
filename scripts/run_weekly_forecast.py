@@ -40,7 +40,7 @@ from src.hk_equity.utils.io import (
     save_forecast_run,
 )
 
-
+#pass the input
 def parse_arguments() -> argparse.Namespace:
     """Read command-line settings for one forecast run."""
 
