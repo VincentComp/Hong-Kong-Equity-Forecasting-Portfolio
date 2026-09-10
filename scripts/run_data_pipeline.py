@@ -5,8 +5,7 @@ import yaml
 from src.hk_equity.data.download import download_close_prices
 
 
-CONFIG_PATH = Path("configs/base.yaml") #Note: this is using default setting
-
+CONFIG_PATH = Path("configs/base.yaml") 
 
 def main():
     with open(CONFIG_PATH, "r") as file:

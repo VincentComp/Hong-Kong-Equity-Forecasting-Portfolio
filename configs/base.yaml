@@ -43,4 +43,4 @@ paths:
   backtests: "outputs/backtests"
   submissions: "outputs/submissions"
   figures: "reports/figures"
-  tables: "reports/tables"
+  reports_tables: "reports/tables" 

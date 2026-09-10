@@ -1,50 +1,45 @@
-"""Build one model-comparison summary table from existing backtest outputs.
-
-This script is read-only:
-    - It does NOT download new data.
-    - It does NOT run or retrain any model.
-    - It only aggregates previously saved backtest result CSV files.
+"""Build one model-performance summary table from existing backtest results.
 
 Examples:
-    python scripts/build_model_summary.py
+    python -m scripts.build_model_summary
 
-    python scripts/build_model_summary.py \
+    python -m scripts.build_model_summary \
         --start 2025-01-01 \
-        --end 2025-12-31
+        --end 2025-12-31 \
+        --output-name model_summary_validation
 
-    python scripts/build_model_summary.py \
-        --start 2026-01-01 \
-        --end 2026-08-31
+    python -m scripts.build_model_summary \
+        --start 2025-01-01 \
+        --end 2025-12-31 \
+        --output-name model_summary_validation \
+        --run-ids ma_4w_v1 ewma_span4_v1
 
-Expected backtest structure:
-    outputs/backtests/
-    ├── ma_4w_v1/
-    │   └── 2026-01-01_to_2026-08-31/
-    │       ├── overall_metrics.csv
-    │       ├── rank_ic_by_week.csv
-    │       └── top_3_by_week.csv
-    │
-    └── ewma_span4_v1/
-        └── 2026-01-01_to_2026-08-31/
+This script:
+1. Scans outputs/backtests/ for all model result folders.
+2. Loads overall_metrics.csv for each model in the specified period.
+3. Merges all results into one summary table (CSV + Excel).
+
+It does not run any backtests. It only aggregates existing results.
 """
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import os
 
-import numpy as np
 import pandas as pd
 
 from src.hk_equity.utils.config import load_yaml
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Read settings for the model-summary aggregation."""
+    """Read command-line settings for building a model summary."""
 
     parser = argparse.ArgumentParser(
         description=(
-            "Build a model comparison table from existing backtest CSV files."
+            "Build one model-performance summary table from existing "
+            "backtest results."
         )
     )
 
@@ -76,319 +71,108 @@ def parse_arguments() -> argparse.Namespace:
         "--output-name",
         default=None,
         help=(
-            "Optional custom output file name without extension. "
-            "Example: model_summary_validation"
+            "Optional summary output name without file extension. "
+            "Default: model_summary_<start>_to_<end>."
+        ),
+    )
+
+    parser.add_argument(
+        "--run-ids",
+        nargs="*",
+        default=None,
+        help=(
+            "Optional model run_ids to filter which models to include. "
+            "Matches against folder names in outputs/backtests/. "
+            "If omitted, includes all models with results in the period."
         ),
     )
 
     return parser.parse_args()
 
 
-def safe_mean(
-    data: pd.Series,
-) -> float:
-    """Return mean after removing missing values; return NaN if no values exist."""
+def discover_model_run_ids(
+    backtests_directory: str,
+    evaluation_label: str,
+    selected_run_ids: list[str] | None = None,
+) -> list[str]:
+    """Discover model run_ids that have results for the specified period."""
 
-    valid_data = data.dropna()
+    if not Path(backtests_directory).exists():
+        raise FileNotFoundError(
+            f"Backtests directory not found: {backtests_directory}"
+        )
 
-    if valid_data.empty:
-        return np.nan
+    all_run_ids = [
+        item for item in os.listdir(backtests_directory)
+        if (Path(backtests_directory) / item).is_dir()
+    ]
 
-    return valid_data.mean()
+    available_run_ids = []
+
+    for run_id in all_run_ids:
+        period_dir = (
+            Path(backtests_directory)
+            / run_id
+            / evaluation_label
+        )
+
+        if period_dir.exists():
+            available_run_ids.append(run_id)
+
+    if selected_run_ids is None:
+        return sorted(available_run_ids)
+
+    filtered = [
+        rid for rid in available_run_ids
+        if rid in selected_run_ids
+    ]
+
+    if not filtered:
+        raise ValueError(
+            f"No model results found for run_ids: {selected_run_ids} "
+            f"in period: {evaluation_label}"
+        )
+
+    return sorted(filtered)
 
 
-def load_optional_csv(
-    path: Path,
+def load_model_metrics(
+    backtests_directory: str,
+    model_run_id: str,
+    evaluation_label: str,
 ) -> pd.DataFrame:
-    """Load optional CSV safely.
+    """Load overall_metrics.csv for one model and period."""
 
-    Missing or empty files are treated as empty DataFrames. This is expected
-    for models such as the zero-return baseline, which cannot produce a
-    meaningful stock ranking.
-    """
-
-    if not path.exists():
-        return pd.DataFrame()
-
-    # Zero-return model may create an empty ranking file.
-    if path.stat().st_size == 0:
-        return pd.DataFrame()
-
-    try:
-        return pd.read_csv(path)
-    except pd.errors.EmptyDataError:
-        return pd.DataFrame()
-
-
-def summarise_one_model_run(
-    run_directory: Path,
-) -> dict:
-    """Read metrics and strategy diagnostics for one completed model backtest."""
-
-    overall_metrics_path = (
-        run_directory
+    metrics_path = (
+        Path(backtests_directory)
+        / model_run_id
+        / evaluation_label
         / "overall_metrics.csv"
     )
 
-    if not overall_metrics_path.exists():
+    if not metrics_path.exists():
         raise FileNotFoundError(
-            f"Missing required file: {overall_metrics_path}"
+            f"Cannot find: {metrics_path}"
         )
 
-    overall_metrics = pd.read_csv(
-        overall_metrics_path
+    metrics = pd.read_csv(
+        metrics_path,
+        dtype={
+            "model": "string",
+            "model_key": "string",
+            "model_run_id": "string",
+            "model_version": "string",
+            "model_parameters": "string",
+            "evaluation_start": "string",
+            "evaluation_end": "string",
+        },
     )
 
-    if overall_metrics.empty:
-        raise ValueError(
-            f"overall_metrics.csv is empty: {overall_metrics_path}"
-        )
-
-    # Each backtest run should have exactly one row of overall metrics.
-    overall_row = overall_metrics.iloc[0].to_dict()
-
-    rank_ic = load_optional_csv(
-        run_directory / "rank_ic_by_week.csv"
-    )
-
-    top_3 = load_optional_csv(
-        run_directory / "top_3_by_week.csv"
-    )
-
-    average_rank_ic = np.nan
-    positive_rank_ic_week_ratio = np.nan
-    number_of_rank_ic_weeks = 0
-
-    if not rank_ic.empty and "rank_ic" in rank_ic.columns:
-        valid_rank_ic = rank_ic["rank_ic"].dropna()
-
-        if not valid_rank_ic.empty:
-            average_rank_ic = valid_rank_ic.mean()
-
-            positive_rank_ic_week_ratio = (
-                valid_rank_ic > 0
-            ).mean()
-
-            number_of_rank_ic_weeks = len(
-                valid_rank_ic
-            )
-
-    average_top_3_actual_return = np.nan
-    average_equal_weight_return = np.nan
-    average_top_3_minus_equal_weight = np.nan
-    number_of_top_3_weeks = 0
-
-    if not top_3.empty:
-        required_columns = [
-            "top_n_average_actual_return",
-            "equal_weight_average_actual_return",
-            "top_n_minus_equal_weight",
-        ]
-
-        if all(
-            column in top_3.columns
-            for column in required_columns
-        ):
-            average_top_3_actual_return = safe_mean(
-                top_3["top_n_average_actual_return"]
-            )
-
-            average_equal_weight_return = safe_mean(
-                top_3["equal_weight_average_actual_return"]
-            )
-
-            average_top_3_minus_equal_weight = safe_mean(
-                top_3["top_n_minus_equal_weight"]
-            )
-
-            number_of_top_3_weeks = len(
-                top_3.dropna(
-                    subset=[
-                        "top_n_minus_equal_weight",
-                    ]
-                )
-            )
-
-    # Add the metrics calculated from Rank IC and Top-3 selection.
-    summary_row = {
-        **overall_row,
-        "average_rank_ic": average_rank_ic,
-        "positive_rank_ic_week_ratio": (
-            positive_rank_ic_week_ratio
-        ),
-        "number_of_rank_ic_weeks": number_of_rank_ic_weeks,
-        "average_top_3_actual_return": (
-            average_top_3_actual_return
-        ),
-        "average_equal_weight_return": (
-            average_equal_weight_return
-        ),
-        "average_top_3_minus_equal_weight": (
-            average_top_3_minus_equal_weight
-        ),
-        "number_of_top_3_weeks": number_of_top_3_weeks,
-        "backtest_run_directory": str(run_directory),
-    }
-
-    # Zero forecast is only a benchmark, because it has no direction or ranking.
-    if summary_row.get("model_key") == "zero":
-        summary_row["role"] = "Baseline"
-    else:
-        summary_row["role"] = "Candidate"
-
-    return summary_row
-
-
-def build_summary(
-    backtests_directory: Path,
-    evaluation_label: str,
-) -> pd.DataFrame:
-    """Discover all completed model runs for one evaluation period."""
-
-    overall_metric_files = list(
-        backtests_directory.glob(
-            f"*/{evaluation_label}/overall_metrics.csv"
-        )
-    )
-
-    if not overall_metric_files:
-        raise FileNotFoundError(
-            "No completed backtest results were found for:\n"
-            f"{backtests_directory}/*/{evaluation_label}/overall_metrics.csv\n\n"
-            "Run one or more models first. For example:\n"
-            "python scripts/run_backtest.py "
-            "--model-config configs/models/moving_average.yaml"
-        )
-
-    summary_rows = []
-
-    for overall_metric_path in overall_metric_files:
-        run_directory = overall_metric_path.parent
-
-        try:
-            summary_rows.append(
-                summarise_one_model_run(
-                    run_directory=run_directory,
-                )
-            )
-
-        except Exception as error:
-            print(
-                f"Warning: skipped {run_directory} because: {error}"
-            )
-
-    if not summary_rows:
-        raise ValueError(
-            "No valid backtest result folders could be summarised."
-        )
-
-    summary = pd.DataFrame(summary_rows)
-
-    # Ensure expected columns exist even if a model cannot provide ranking metrics.
-    expected_columns = [
-        "model",
-        "model_key",
-        "model_run_id",
-        "model_version",
-        "model_parameters",
-        "evaluation_start",
-        "evaluation_end",
-        "observations",
-        "MAE",
-        "RMSE",
-        "directional_accuracy",
-        "mean_predicted_return",
-        "mean_actual_return",
-        "forecast_bias",
-        "average_rank_ic",
-        "positive_rank_ic_week_ratio",
-        "number_of_rank_ic_weeks",
-        "average_top_3_actual_return",
-        "average_equal_weight_return",
-        "average_top_3_minus_equal_weight",
-        "number_of_top_3_weeks",
-        "role",
-        "backtest_run_directory",
-    ]
-
-    for column in expected_columns:
-        if column not in summary.columns:
-            summary[column] = np.nan
-
-    summary = summary[
-        expected_columns
-    ].sort_values(
-        by=["MAE", "RMSE"],
-        ascending=[True, True],
-        na_position="last",
-    ).reset_index(drop=True)
-
-    return summary
-
-
-def print_summary(
-    summary: pd.DataFrame,
-) -> None:
-    """Print the key metrics in a readable terminal table."""
-
-    display_columns = [
-        "role",
-        "model_run_id",
-        "model",
-        "MAE",
-        "RMSE",
-        "directional_accuracy",
-        "average_rank_ic",
-        "average_top_3_minus_equal_weight",
-    ]
-
-    printable_summary = summary[
-        display_columns
-    ].copy()
-
-    percentage_columns = [
-        "MAE",
-        "RMSE",
-        "directional_accuracy",
-        "average_top_3_minus_equal_weight",
-    ]
-
-    for column in percentage_columns:
-        printable_summary[column] = (
-            printable_summary[column]
-            .map(
-                lambda value: (
-                    f"{value:.2%}"
-                    if pd.notna(value)
-                    else "N/A"
-                )
-            )
-        )
-
-    printable_summary["average_rank_ic"] = (
-        printable_summary["average_rank_ic"]
-        .map(
-            lambda value: (
-                f"{value:.4f}"
-                if pd.notna(value)
-                else "N/A"
-            )
-        )
-    )
-
-    print(
-        "\nModel Performance Summary:\n"
-    )
-
-    print(
-        printable_summary.to_string(
-            index=False,
-        )
-    )
+    return metrics
 
 
 def main() -> None:
-    """Build and save one summary table for a selected evaluation period."""
+    """Aggregate all model results into one summary table."""
 
     args = parse_arguments()
 
@@ -412,54 +196,82 @@ def main() -> None:
         f"{evaluation_start}_to_{evaluation_end}"
     )
 
-    backtests_directory = Path(
+    backtests_directory = (
         base_config["paths"]["backtests"]
     )
 
-    summary = build_summary(
-        backtests_directory=backtests_directory,
-        evaluation_label=evaluation_label,
+    reports_tables_dir = (
+        base_config["paths"]["reports_tables"]
     )
 
-    reports_tables_directory = Path(
-        base_config["paths"]["tables"]
-    )
-
-    reports_tables_directory.mkdir(
+    Path(reports_tables_dir).mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    output_name = (
-        args.output_name
-        if args.output_name is not None
-        else f"model_summary_{evaluation_label}"
+    model_run_ids = discover_model_run_ids(
+        backtests_directory=backtests_directory,
+        evaluation_label=evaluation_label,
+        selected_run_ids=args.run_ids,
     )
 
+    print(
+        "\nBuilding model summary"
+        f"\nEvaluation period: {evaluation_label}"
+        f"\nModels found: {len(model_run_ids)}"
+        f"\nModels: {', '.join(model_run_ids)}"
+    )
+
+    all_metrics = []
+
+    for model_run_id in model_run_ids:
+        metrics = load_model_metrics(
+            backtests_directory=backtests_directory,
+            model_run_id=model_run_id,
+            evaluation_label=evaluation_label,
+        )
+
+        all_metrics.append(metrics)
+
+    if not all_metrics:
+        raise ValueError(
+            f"No model results found for period: {evaluation_label}"
+        )
+
+    summary_table = pd.concat(
+        all_metrics,
+        ignore_index=True,
+    )
+
+    if args.output_name is None:
+        output_name = f"model_summary_{evaluation_label}"
+    else:
+        output_name = args.output_name
+
     csv_path = (
-        reports_tables_directory
+        Path(reports_tables_dir)
         / f"{output_name}.csv"
     )
 
     excel_path = (
-        reports_tables_directory
+        Path(reports_tables_dir)
         / f"{output_name}.xlsx"
     )
 
-    summary.to_csv(
+    summary_table.to_csv(
         csv_path,
         index=False,
     )
 
-    summary.to_excel(
+    summary_table.to_excel(
         excel_path,
         index=False,
     )
 
-    print_summary(summary)
-
-    print(f"\nCSV summary saved to: {csv_path}")
-    print(f"Excel summary saved to: {excel_path}")
+    print("\nModel summary built successfully.\n")
+    print(summary_table.to_string(index=False))
+    print(f"\nCSV: {csv_path}")
+    print(f"Excel: {excel_path}")
 
 
 if __name__ == "__main__":

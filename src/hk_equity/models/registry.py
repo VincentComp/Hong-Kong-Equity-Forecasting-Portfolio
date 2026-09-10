@@ -1,3 +1,25 @@
+"""Register and dispatch forecasting models for live forecasts and backtests.
+
+This module is the central model-selection layer of the project. It maps the
+model name in a YAML configuration file to the correct Python forecasting
+function, so scripts do not need repeated model-specific ``if/elif`` logic.
+
+Live forecasting and historical backtesting use separate registries because
+their outputs differ:
+
+- Live models return one Series: one predicted next-week return per stock.
+- Backtest models return one DataFrame: one historical forecast per
+  stock-week observation.
+
+All functions within each registry follow a common interface:
+
+    forecast_function(weekly_returns, parameters)
+
+Each model YAML configuration should also contain ``model.label``. The label
+is used in reports, forecast tables, CSV files, and plots, so adding a new
+model does not require changing ``get_model_label()``.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -13,7 +35,7 @@ def predict_zero(
     weekly_returns: pd.DataFrame,
     parameters: dict,
 ) -> pd.Series:
-    """Predict 0% next-week return for every stock."""
+    """Predict a 0% next-week return for every stock."""
 
     return pd.Series(
         data=0.0,
@@ -26,7 +48,7 @@ def predict_moving_average(
     weekly_returns: pd.DataFrame,
     parameters: dict,
 ) -> pd.Series:
-    """Predict next-week return using the recent simple average return."""
+    """Predict next-week returns from the recent simple average return."""
 
     lookback_weeks = parameters["lookback_weeks"]
 
@@ -36,7 +58,6 @@ def predict_moving_average(
             "completed weekly returns."
         )
 
-    # Use the latest completed weekly returns to forecast the next week.
     return weekly_returns.tail(lookback_weeks).mean()
 
 
@@ -44,7 +65,7 @@ def predict_ewma(
     weekly_returns: pd.DataFrame,
     parameters: dict,
 ) -> pd.Series:
-    """Predict next-week return using an exponentially weighted average."""
+    """Predict next-week returns from an exponentially weighted average."""
 
     span_weeks = parameters["span_weeks"]
 
@@ -53,47 +74,42 @@ def predict_ewma(
             f"EWMA needs at least {span_weeks} completed weekly returns."
         )
 
-    # EWMA gives higher weight to the latest completed weekly returns.
     return (
         weekly_returns
         .ewm(span=span_weeks, adjust=False)
         .mean()
         .iloc[-1]
     )
+    #a = 2 / (1+span)
+    #EWMA(t) = a*R(t) + (1-a)*EWMA(t-1)
 
 
-# Live Forecast Registry:
-# YAML model name -> Python function that produces one next-week forecast Series.
+#===================================================================================
+
+#Use the predictied function in registry.py
+#Return a series
 LIVE_MODEL_REGISTRY = {
     "zero": predict_zero,
     "moving_average": predict_moving_average,
     "ewma": predict_ewma,
 }
 
-
-# Historical Backtest Registry:
-# YAML model name -> Python function that produces a historical forecast DataFrame.
+#Use the forcast function in {model}.py
+#Return a dataframe
 BACKTEST_MODEL_REGISTRY = {
     "zero": zero_return_forecast,
     "moving_average": moving_average_forecast,
     "ewma": ewma_forecast,
 }
 
+#===================================================================================
+
 
 def get_model_forecast(
     weekly_returns: pd.DataFrame,
     model_config: dict,
 ) -> pd.Series:
-    """Generate one next-week predicted return for each stock.
-
-    This function is used by:
-        scripts/run_weekly_forecast.py
-
-    Every live model must return:
-        pd.Series
-        - index: ticker symbols
-        - values: predicted next-week returns
-    """
+    """Generate one next-week predicted return for every stock."""
 
     model_name = model_config["model"]["name"]
     parameters = model_config.get("parameters", {})
@@ -118,17 +134,7 @@ def get_backtest_forecasts(
     weekly_returns: pd.DataFrame,
     model_config: dict,
 ) -> pd.DataFrame:
-    """Generate historical one-step-ahead forecasts for every stock.
-
-    This function is used by:
-        scripts/run_backtest.py
-
-    Every historical forecast must align with actual weekly returns:
-        forecast at week t uses information available before week t.
-
-    The Moving Average and EWMA functions in baseline.py already use
-    .shift(1), so they avoid look-ahead bias.
-    """
+    """Generate historical one-step-ahead forecasts for every stock and week."""
 
     model_name = model_config["model"]["name"]
     parameters = model_config.get("parameters", {})
@@ -143,45 +149,31 @@ def get_backtest_forecasts(
 
     forecast_function = BACKTEST_MODEL_REGISTRY[model_name]
 
-    if model_name == "zero":
-        return forecast_function(
-            weekly_returns=weekly_returns,
-        )
-
-    if model_name == "moving_average":
-        return forecast_function(
-            weekly_returns=weekly_returns,
-            lookback_weeks=parameters["lookback_weeks"],
-        )
-
-    if model_name == "ewma":
-        return forecast_function(
-            weekly_returns=weekly_returns,
-            span_weeks=parameters["span_weeks"],
-        )
-
-    raise ValueError(
-        f"Backtest implementation is missing for model: {model_name}"
+    return forecast_function(
+        weekly_returns=weekly_returns,
+        parameters=parameters,
     )
 
 
 def get_model_label(
     model_config: dict,
 ) -> str:
-    """Return a readable model name for reports, CSV outputs, and plots."""
+    """Return the configured readable model label for outputs.
 
-    model_name = model_config["model"]["name"]
-    parameters = model_config.get("parameters", {})
+    The label is stored under ``model.label`` in each model YAML file.
+    If it is missing, this function falls back to ``model.name`` so existing
+    or incomplete configurations do not immediately break the workflow.
 
-    if model_name == "zero":
-        return "Zero Return Baseline"
+    Args:
+        model_config: Selected model YAML configuration loaded as a dictionary.
 
-    if model_name == "moving_average":
-        lookback = parameters["lookback_weeks"]
-        return f"{lookback}-Week Moving Average"
+    Returns:
+        A readable model label for reports, CSV outputs, and plots.
+    """
 
-    if model_name == "ewma":
-        span = parameters["span_weeks"]
-        return f"{span}-Week EWMA"
+    model_settings = model_config["model"]
 
-    return model_name
+    return model_settings.get(
+        "label",
+        model_settings["name"],
+    )

@@ -30,11 +30,12 @@ def download_close_prices(
             no internet connectivity).
 
     Example:
-        >>> df = download_close_prices(
-        ...     tickers=['0700.HK', '9988.HK'],
-        ...     start_date='2024-01-01',
-        ...     output_dir='./data'
-        ... )
+        from src.hk_equity.data.download import download_close_prices
+        df = download_close_prices(
+            tickers=['0700.HK', '9988.HK'],
+            start_date='2024-01-01',
+            output_dir='./'
+        )
     """
 
     #parents = True : If paraenet directory not exist, also create parent directory

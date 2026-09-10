@@ -49,7 +49,7 @@ def calculate_returns(
         no prior price exists.
     """
     #If previous = NA, then let the result be NA
-#If pass weekly close, then it would become weekly return
+    #If pass weekly close as input, then it would become weekly return
     return prices.pct_change(fill_method=None)
 
 

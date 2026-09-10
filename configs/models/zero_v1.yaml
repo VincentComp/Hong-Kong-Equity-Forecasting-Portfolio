@@ -1,6 +1,7 @@
 model:
-  name: "zero"
-  version: "1.0"
-  run_id: "zero_v1"
+  name: zero
+  run_id: zero_v1
+  label: Zero Return Baseline
+  version: v1
 
 parameters: {}

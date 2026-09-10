@@ -3,8 +3,8 @@
 Examples:
     python scripts/run_backtest.py
 
-    python scripts/run_backtest.py \
-        --model-config configs/models/moving_average.yaml
+    python -m scripts.run_backtest \
+        --model-config configs/models/ma_4w_v1.yaml
 
     python scripts/run_backtest.py \
         --model-config configs/models/ewma.yaml
@@ -58,7 +58,7 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument(
         "--model-config",
-        default="configs/models/ma_4w.yaml",
+        default="configs/models/ma_4w_v1.yaml",
         help="Path to one model-specific configuration YAML.",
     )
 

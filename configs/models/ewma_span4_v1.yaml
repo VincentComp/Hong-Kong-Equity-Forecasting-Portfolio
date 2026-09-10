@@ -1,7 +1,8 @@
 model:
-  name: "ewma"
-  version: "1.0"
-  run_id: "ewma_span4_v1"
+  name: ewma
+  run_id: ewma_span4_v1
+  label: 4-Week EWMA
+  version: v1
 
 parameters:
   span_weeks: 4
