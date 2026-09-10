@@ -33,7 +33,7 @@ import sys
 
 from src.hk_equity.utils.config import load_yaml
 
-
+#Get the yaml file required for this run
 def discover_model_configs(
     models_directory: str = "configs/models",
     selected_run_ids: list[str] | None = None,
@@ -44,11 +44,11 @@ def discover_model_configs(
         glob(f"{models_directory}/*.yaml")
     )
 
-    if selected_run_ids is None:
+    if selected_run_ids is None: #if no specify then use all
         return all_yaml_files
 
+    #get the select model id only
     filtered = []
-
     for yaml_path in all_yaml_files:
         model_config = load_yaml(yaml_path)
         run_id = model_config["model"]["run_id"]
@@ -63,7 +63,7 @@ def discover_model_configs(
 
     return filtered
 
-
+#parse the input
 def parse_arguments() -> argparse.Namespace:
     """Read experiment-suite command-line arguments."""
 
@@ -127,6 +127,7 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+#check if the backtest result exist
 def backtest_result_exists(
     backtests_directory: str,
     model_run_id: str,
@@ -143,7 +144,7 @@ def backtest_result_exists(
 
     return expected_metrics_file.exists()
 
-
+#run the back test if the result not yet exist
 def run_backtest(
     base_config_path: str,
     model_config_path: str,
@@ -175,6 +176,7 @@ def run_backtest(
     )
 
 
+#but the summary table for the running results
 def build_summary(
     base_config_path: str,
     evaluation_start: str,
@@ -265,7 +267,7 @@ def main() -> None:
             evaluation_label=evaluation_label,
         )
 
-        if result_exists and not args.force:
+        if result_exists and not args.force:#skip the existing model
             print(
                 f"\nSkipping {model_run_id}: "
                 "existing backtest result found."

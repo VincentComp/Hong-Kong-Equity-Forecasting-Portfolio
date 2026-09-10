@@ -33,6 +33,7 @@ import pandas as pd
 from src.hk_equity.utils.config import load_yaml
 
 
+#Pass the input command
 def parse_arguments() -> argparse.Namespace:
     """Read command-line settings for building a model summary."""
 
@@ -90,6 +91,7 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+#Scan outputs/backtests/ -> to select valid backtest csv
 def discover_model_run_ids(
     backtests_directory: str,
     evaluation_label: str,
@@ -97,18 +99,18 @@ def discover_model_run_ids(
 ) -> list[str]:
     """Discover model run_ids that have results for the specified period."""
 
-    if not Path(backtests_directory).exists():
+    if not Path(backtests_directory).exists(): #if directory not exist -> end
         raise FileNotFoundError(
             f"Backtests directory not found: {backtests_directory}"
         )
 
-    all_run_ids = [
+    all_run_ids = [#get all the model run id
         item for item in os.listdir(backtests_directory)
         if (Path(backtests_directory) / item).is_dir()
     ]
 
-    available_run_ids = []
 
+    available_run_ids = []
     for run_id in all_run_ids:
         period_dir = (
             Path(backtests_directory)
@@ -119,15 +121,17 @@ def discover_model_run_ids(
         if period_dir.exists():
             available_run_ids.append(run_id)
 
+    #if have specific model, then build summary for specified model only
     if selected_run_ids is None:
         return sorted(available_run_ids)
 
+    #if have no specific model, then build summary for all existing model csv
     filtered = [
         rid for rid in available_run_ids
         if rid in selected_run_ids
     ]
 
-    if not filtered:
+    if not filtered: #if nothing remain -> return error
         raise ValueError(
             f"No model results found for run_ids: {selected_run_ids} "
             f"in period: {evaluation_label}"
@@ -136,7 +140,7 @@ def discover_model_run_ids(
     return sorted(filtered)
 
 
-def load_model_metrics(
+def load_model_metrics(#read the valid result metrics
     backtests_directory: str,
     model_run_id: str,
     evaluation_label: str,

@@ -7,12 +7,11 @@ Examples:
         --model-config configs/models/ma_4w_v1.yaml
 
     python scripts/run_backtest.py \
-        --model-config configs/models/ewma.yaml
-
-    python scripts/run_backtest.py \
-        --model-config configs/models/moving_average.yaml \
+        --model-config configs/models/ma_4w_v1.yaml \
         --start 2025-01-01 \
         --end 2025-12-31
+
+
 
 The default evaluation period is the test period in configs/base.yaml.
 """
@@ -41,6 +40,7 @@ from src.hk_equity.models.registry import (
 from src.hk_equity.utils.config import load_project_config
 
 
+#parse the input
 def parse_arguments() -> argparse.Namespace:
     """Read command-line settings for one backtest run."""
 
@@ -83,6 +83,7 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+#Load the latest daily close price as dataframe
 def load_daily_close_prices(
     raw_data_directory: str,
 ) -> pd.DataFrame:
@@ -124,8 +125,8 @@ def create_prediction_table(
 
     records = []
 
-    for week_ending in actual_returns.index:
-        for ticker in actual_returns.columns:
+    for week_ending in actual_returns.index:  #for every week
+        for ticker in actual_returns.columns: #for every ticker
             actual_return = actual_returns.at[
                 week_ending,
                 ticker,
@@ -158,7 +159,7 @@ def create_prediction_table(
                 ),
             })
 
-    prediction_table = pd.DataFrame(records)
+    prediction_table = pd.DataFrame(records)# return the every-week result dataframe
 
     if prediction_table.empty:
         raise ValueError(
@@ -184,13 +185,13 @@ def main() -> None:
     model_label = get_model_label(model_config)
 
     # Use command-line dates if supplied; otherwise use official test period.
-    evaluation_start = (
+    evaluation_start = (#get the start date -> if not specify, use base.yaml
         args.start
         if args.start is not None
         else base_config["periods"]["test_start"]
     )
 
-    evaluation_end = (
+    evaluation_end = (#get the end date -> if not specify, use base.yaml
         args.end
         if args.end is not None
         else base_config["periods"]["test_end"]
@@ -217,6 +218,8 @@ def main() -> None:
         model_config=model_config,
     )
 
+
+    #only get use the data within teesting period for test
     actual_returns = weekly_returns.loc[
         evaluation_start:evaluation_end
     ]
@@ -231,6 +234,7 @@ def main() -> None:
             f"{evaluation_start} to {evaluation_end}"
         )
 
+
     # Remove dates with no valid prediction for every stock.
     valid_dates = predicted_returns.dropna(
         how="all"
@@ -239,6 +243,7 @@ def main() -> None:
     actual_returns = actual_returns.loc[valid_dates]
     predicted_returns = predicted_returns.loc[valid_dates]
 
+    #create the prediction model table
     prediction_table = create_prediction_table(
         actual_returns=actual_returns,
         predicted_returns=predicted_returns,
@@ -248,9 +253,10 @@ def main() -> None:
     )
     prediction_table["model_run_id"] = model_run_id
 
+
+
     # Calculate model metrics separately for each stock.
     metrics_rows = []
-
     for ticker in base_config["tickers"]:
         ticker_data = prediction_table[
             prediction_table["ticker"] == ticker
@@ -270,13 +276,14 @@ def main() -> None:
             **ticker_metrics,
         })
 
-    metrics_by_stock = (
+    metrics_by_stock = (#sort the result with MAE
         pd.DataFrame(metrics_rows)
         .sort_values("MAE")
         .reset_index(drop=True)
     )
 
-    # Calculate overall metrics using every stock-week forecast observation.
+
+    #Build the Evaluation metric for the entire portfolio
     overall_metrics = forecast_metrics(
         actual=prediction_table["actual_weekly_return"],
         predicted=prediction_table["predicted_weekly_return"],
@@ -294,6 +301,8 @@ def main() -> None:
         "evaluation_end": evaluation_end,
         **overall_metrics,
     }])
+
+
 
     # Evaluate whether the model ranks relatively stronger stocks correctly.
     rank_ic_by_week = calculate_rank_ic_by_week(
