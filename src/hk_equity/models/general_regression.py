@@ -608,3 +608,68 @@ def get_regression_backtest_forecasts(
         )
 
     return predictions
+
+# ----------------------------------------------------------------------------- 
+# Common model-interface adapters
+# ----------------------------------------------------------------------------- 
+
+
+def _get_regression_parameters(
+    model_config: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge regression parameters and feature settings from model YAML."""
+
+    parameters = model_config.get(
+        "parameters",
+        {},
+    )
+
+    feature_settings = model_config.get(
+        "features",
+        {},
+    )
+
+    return {
+        **parameters,
+        **feature_settings,
+    }
+
+
+def regression_live_forecast(
+    weekly_returns: pd.DataFrame,
+    model_config: dict[str, Any],
+    benchmark_returns: pd.Series | None = None,
+) -> pd.Series:
+    """Adapt regression live forecasting to the common model interface."""
+
+    if benchmark_returns is None:
+        raise ValueError(
+            "benchmark_returns is required for general_regression."
+        )
+
+    parameters = _get_regression_parameters(
+        model_config=model_config,
+    )
+
+    return get_regression_forecast(
+        weekly_returns=weekly_returns,
+        benchmark_returns=benchmark_returns,
+        parameters=parameters,
+    )
+
+
+def regression_backtest_forecast(
+    weekly_returns: pd.DataFrame,
+    model_config: dict[str, Any],
+    benchmark_returns: pd.Series | None = None,
+) -> pd.DataFrame:
+    """Adapt regression backtesting to the common model interface."""
+
+    parameters = _get_regression_parameters(
+        model_config=model_config,
+    )
+
+    return get_regression_backtest_forecasts(
+        weekly_returns=weekly_returns,
+        parameters=parameters,
+    )
