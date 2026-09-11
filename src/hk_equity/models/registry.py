@@ -32,6 +32,7 @@ from src.hk_equity.models.baseline import (
     zero_return_forecast,
 )
 from src.hk_equity.models.general_regression import (
+    get_regression_backtest_forecasts,
     get_regression_forecast,
 )
 
@@ -131,6 +132,32 @@ def _get_available_model_names(
     return ", ".join(sorted(registry.keys()))
 
 
+def _get_regression_settings(
+    model_config: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge model parameters with regression feature settings.
+
+    Baseline models continue using only ``parameters``. Regression additionally
+    needs model-specific feature settings such as selected_columns and the
+    processed feature-map path.
+    """
+
+    parameters = model_config.get(
+        "parameters",
+        {},
+    )
+
+    feature_settings = model_config.get(
+        "features",
+        {},
+    )
+
+    return {
+        **parameters,
+        **feature_settings,
+    }
+
+
 #==================================================================================
 
 #Use the predictied function in registry.py
@@ -164,7 +191,6 @@ def get_model_forecast(
     """
 
     model_name = _get_model_name(model_config)
-    parameters = model_config.get("parameters", {})
 
     if model_name == "general_regression":
         if benchmark_returns is None:
@@ -172,11 +198,20 @@ def get_model_forecast(
                 "benchmark_returns is required for general_regression."
             )
 
+        regression_settings = _get_regression_settings(
+            model_config=model_config,
+        )
+
         return get_regression_forecast(
             weekly_returns=weekly_returns,
             benchmark_returns=benchmark_returns,
-            parameters=parameters,
+            parameters=regression_settings,
         )
+
+    parameters = model_config.get(
+        "parameters",
+        {},
+    )
 
     if model_name not in LIVE_MODEL_REGISTRY:
         available_models = _get_available_model_names(
@@ -208,11 +243,10 @@ def get_backtest_forecasts(
 
     Baseline backtests use the existing shifted DataFrame functions. General
     regression uses an expanding-window walk-forward procedure so each target
-    week is predicted only from earlier observations.
+    week is predicted only from earlier feature-map observations.
     """
 
     model_name = _get_model_name(model_config)
-    parameters = model_config.get("parameters", {})
 
     if model_name == "general_regression":
         if benchmark_returns is None:
@@ -220,17 +254,25 @@ def get_backtest_forecasts(
                 "benchmark_returns is required for general_regression."
             )
 
-        return _get_regression_backtest_forecasts(
-            weekly_returns=weekly_returns,
-            benchmark_returns=benchmark_returns,
-            parameters=parameters,
+        regression_settings = _get_regression_settings(
+            model_config=model_config,
         )
+
+        return get_regression_backtest_forecasts(
+            weekly_returns=weekly_returns,
+            parameters=regression_settings,
+        )
+
+    parameters = model_config.get(
+        "parameters",
+        {},
+    )
 
     if model_name not in BACKTEST_MODEL_REGISTRY:
         available_models = _get_available_model_names(
             {
                 **BACKTEST_MODEL_REGISTRY,
-                "general_regression": get_regression_forecast,
+                "general_regression": get_regression_backtest_forecasts,
             }
         )
 
@@ -245,56 +287,6 @@ def get_backtest_forecasts(
         weekly_returns=weekly_returns,
         parameters=parameters,
     )
-
-
-def _get_regression_backtest_forecasts(
-    weekly_returns: pd.DataFrame,
-    benchmark_returns: pd.Series,
-    parameters: dict[str, Any],
-) -> pd.DataFrame:
-    """Generate regression forecasts using an expanding training window."""
-
-    predictions = pd.DataFrame(
-        index=weekly_returns.index,
-        columns=weekly_returns.columns,
-        dtype=float,
-    )
-
-    minimum_training_weeks = int(
-        parameters.get("minimum_training_weeks", 60)
-    )
-
-    if minimum_training_weeks <= 0:
-        raise ValueError(
-            "minimum_training_weeks must be greater than zero."
-        )
-
-    for target_week in weekly_returns.index:
-        # Use only weeks strictly before the target week. This is the
-        # expanding-window rule that prevents target-week leakage.
-        history_returns = weekly_returns.loc[
-            weekly_returns.index < target_week
-        ]
-
-        history_benchmark = benchmark_returns.reindex(
-            history_returns.index
-        )
-
-        if len(history_returns) < minimum_training_weeks:
-            continue
-
-        prediction = get_regression_forecast(
-            weekly_returns=history_returns,
-            benchmark_returns=history_benchmark,
-            parameters=parameters,
-        )
-
-        predictions.loc[
-            target_week,
-            prediction.index,
-        ] = prediction
-
-    return predictions
 
 
 def get_model_label(

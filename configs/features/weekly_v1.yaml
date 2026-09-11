@@ -1,0 +1,33 @@
+feature_set:
+  name: weekly_v1
+  version: "1.0"
+  description: >
+    Weekly return features using portfolio returns and Hang Seng Index
+    benchmark returns. All historical features are lagged so each target
+    week uses only information available before that target week.
+
+generation:
+  lag_weeks: [1, 2, 3, 4, 8, 12, 24, 52]
+  rolling_windows: [4, 12, 26]
+
+  include_rolling_std: true
+  include_downside_deviation: true
+  include_market_features: true
+  include_excess_return_features: true
+
+  include_ratio_features: false
+
+  include_cross_sectional_features: true
+  cross_sectional_columns:
+    - return_lag_1
+    - return_lag_4
+    - return_lag_12
+    - rolling_mean_4
+    - rolling_mean_12
+    - rolling_mean_26
+    - risk_adjusted_mean_4
+    - excess_return_lag_1
+
+  winsorize_features: false
+  winsorize_lower: 0.05
+  winsorize_upper: 0.95

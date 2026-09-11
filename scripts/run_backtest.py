@@ -412,6 +412,9 @@ def main() -> None:
         "model_parameters": str(
             model_config.get("parameters", {})
         ),
+        "model_features": str(
+            model_config.get("features", {})
+        ),
         "evaluation_start": evaluation_start,
         "evaluation_end": evaluation_end,
         **overall_metrics,
