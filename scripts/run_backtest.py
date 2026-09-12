@@ -12,6 +12,11 @@ Examples:
         --end 2025-12-31
 
 
+    #currently use this
+    python -m scripts.run_backtest \
+        --model-config configs/models/regression_v1.yaml \
+        --start 2020-01-01 \
+        --end 2026-08-31
 
 The default evaluation period is the test period in configs/base.yaml.
 """

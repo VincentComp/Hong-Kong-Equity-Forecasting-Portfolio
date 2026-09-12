@@ -1,3 +1,7 @@
+"""
+python -m scripts.run_data_pipeline
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

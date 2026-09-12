@@ -1,8 +1,8 @@
 model:
   name: general_regression
   label: Ridge Regression - Weekly V1 All Features
-  version: "1.0"
-  run_id: ridge_weekly_v1_all_features
+  version: "v1"
+  run_id: regression_v1
 
 parameters:
   estimator: ridge

@@ -41,7 +41,6 @@ from src.hk_equity.utils.io import (
 )
 
 
-#pass the input
 def parse_arguments() -> argparse.Namespace:
     """Read command-line settings for one forecast run."""
 
@@ -112,28 +111,96 @@ def load_daily_close_prices(
             "latest_daily_close.csv is empty."
         )
 
+    if not isinstance(daily_close.index, pd.DatetimeIndex):
+        raise TypeError(
+            "The daily close index must be a DatetimeIndex."
+        )
+
     return daily_close
 
 
 def prepare_portfolio_daily_close(
     daily_close: pd.DataFrame,
     portfolio_tickers: list[str],
-) -> pd.DataFrame:
-    """Return only the portfolio stocks used for baseline forecasting."""
+    market_ticker: str,
+) -> tuple[pd.DataFrame, pd.Series]:
+    """Return portfolio prices and the market benchmark prices.
 
-    missing_tickers = [
+    The market benchmark is used only to create benchmark returns for models
+    such as general_regression. It is not forecasted or submitted as a stock.
+    """
+
+    missing_portfolio_tickers = [
         ticker
         for ticker in portfolio_tickers
         if ticker not in daily_close.columns
     ]
 
-    if missing_tickers:
+    if missing_portfolio_tickers:
         raise ValueError(
             "Missing portfolio ticker columns: "
-            f"{missing_tickers}"
+            f"{missing_portfolio_tickers}"
         )
 
-    return daily_close[portfolio_tickers].copy()
+    if market_ticker not in daily_close.columns:
+        raise ValueError(
+            f"Missing market ticker column: {market_ticker}"
+        )
+
+    portfolio_daily_close = daily_close[
+        portfolio_tickers
+    ].copy()
+
+    market_daily_close = daily_close[
+        market_ticker
+    ].copy()
+
+    return portfolio_daily_close, market_daily_close
+
+
+def build_benchmark_weekly_returns(
+    market_daily_close: pd.Series,
+    data_cutoff: pd.Timestamp,
+    weekly_frequency: str,
+) -> pd.Series:
+    """Build weekly benchmark returns using data up to the forecast cutoff."""
+
+    market_daily_close = market_daily_close.loc[:data_cutoff]
+
+    if market_daily_close.empty:
+        raise ValueError(
+            "No market benchmark data is available before data_cutoff."
+        )
+
+    market_daily_returns = (
+        market_daily_close
+        .pct_change()
+        .dropna()
+    )
+
+    benchmark_weekly_returns = (
+        market_daily_returns
+        .resample(weekly_frequency)
+        .apply(lambda values: (1.0 + values).prod() - 1.0)
+        .dropna()
+    )
+
+    benchmark_weekly_returns.name = "benchmark_return"
+
+    if benchmark_weekly_returns.empty:
+        raise ValueError(
+            "Could not construct benchmark weekly returns."
+        )
+
+    if not isinstance(
+        benchmark_weekly_returns.index,
+        pd.DatetimeIndex,
+    ):
+        raise TypeError(
+            "benchmark_weekly_returns must have a DatetimeIndex."
+        )
+
+    return benchmark_weekly_returns
 
 
 def main() -> None:
@@ -141,13 +208,11 @@ def main() -> None:
 
     args = parse_arguments()
 
-    # Load general project settings and the selected model settings.
     base_config, model_config = load_project_config(
         base_config_path=args.base_config,
         model_config_path=args.model_config,
     )
 
-    # Load the latest saved daily Close-price snapshot.
     daily_close = load_daily_close_prices(
         raw_data_directory=base_config["paths"]["raw_data"],
     )
@@ -156,32 +221,52 @@ def main() -> None:
         base_config["tickers"].keys()
     )
 
-    # The raw CSV may contain ^HSI. HSI is a benchmark for future advanced
-    # features, not a stock to forecast or submit.
-    portfolio_daily_close = prepare_portfolio_daily_close(
+    market_ticker = base_config["market"]["ticker"]
+
+    (
+        portfolio_daily_close,
+        market_daily_close,
+    ) = prepare_portfolio_daily_close(
         daily_close=daily_close,
         portfolio_tickers=portfolio_tickers,
+        market_ticker=market_ticker,
     )
 
-    # Use the requested cutoff, or latest available price date by default.
     data_cutoff = (
         pd.Timestamp(args.as_of)
         if args.as_of is not None
         else portfolio_daily_close.index.max()
     )
 
-    # Build one common context used by every forecasting model.
+    if data_cutoff > daily_close.index.max():
+        raise ValueError(
+            "--as-of is later than the latest available data date: "
+            f"{daily_close.index.max().date()}"
+        )
+
     context = build_forecast_context(
         daily_close=portfolio_daily_close,
         data_cutoff=data_cutoff,
-        weekly_frequency=base_config["forecast"]["weekly_frequency"],
-        horizon_trading_days=base_config["forecast"]["horizon_trading_days"],
+        weekly_frequency=base_config["forecast"][
+            "weekly_frequency"
+        ],
+        horizon_trading_days=base_config["forecast"][
+            "horizon_trading_days"
+        ],
     )
 
-    # Generate one predicted next-week return per portfolio ticker.
+    benchmark_weekly_returns = build_benchmark_weekly_returns(
+        market_daily_close=market_daily_close,
+        data_cutoff=data_cutoff,
+        weekly_frequency=base_config["forecast"][
+            "weekly_frequency"
+        ],
+    )
+
     predicted_return = get_model_forecast(
         weekly_returns=context.weekly_returns,
         model_config=model_config,
+        benchmark_returns=benchmark_weekly_returns,
     )
 
     model_key = model_config["model"]["name"]
@@ -191,7 +276,6 @@ def main() -> None:
         model_config=model_config,
     )
 
-    # Convert model output into a standard Project 1 forecast table.
     forecast_table = build_forecast_table(
         predicted_return=predicted_return,
         tickers=base_config["tickers"],
@@ -202,23 +286,26 @@ def main() -> None:
 
     forecast_date = context.data_cutoff.date().isoformat()
 
-    # Keep metadata so the exact data cutoff, model version, and parameters
-    # can be reproduced after submission.
     metadata = {
         "project_name": base_config["project_name"],
         "data_source": base_config["data"]["source"],
         "price_field": base_config["data"]["price_field"],
         "auto_adjust": base_config["data"]["auto_adjust"],
-        "market_ticker": base_config["market"]["ticker"],
-        "weekly_frequency": base_config["forecast"]["weekly_frequency"],
-        "horizon_trading_days": (
-            base_config["forecast"]["horizon_trading_days"]
-        ),
+        "market_ticker": market_ticker,
+        "weekly_frequency": base_config["forecast"][
+            "weekly_frequency"
+        ],
+        "horizon_trading_days": base_config["forecast"][
+            "horizon_trading_days"
+        ],
         "model_config_path": args.model_config,
         "model_key": model_key,
         "model_run_id": model_run_id,
         "model_version": model_config["model"]["version"],
-        "model_parameters": model_config.get("parameters", {}),
+        "model_parameters": model_config.get(
+            "parameters",
+            {},
+        ),
         "requested_data_cutoff": (
             context.data_cutoff.date().isoformat()
         ),
@@ -240,8 +327,6 @@ def main() -> None:
         "number_of_stocks": len(forecast_table),
     }
 
-    # Save the full research record under:
-    # outputs/forecasts/YYYY-MM-DD/model_key/
     run_directory = save_forecast_run(
         forecast_df=forecast_table,
         metadata=metadata,
@@ -251,7 +336,6 @@ def main() -> None:
         allow_overwrite=args.overwrite,
     )
 
-    # Save a clean CSV for review or final Moodle submission.
     submission_path = export_submission_file(
         forecast_df=forecast_table,
         forecast_date=forecast_date,
