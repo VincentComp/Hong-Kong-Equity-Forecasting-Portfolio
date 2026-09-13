@@ -282,12 +282,64 @@ def main() -> None:
         model_config=model_config,
     )
 
+    source_model_profile: dict[str, str] | None = None
+    source_model_run_id: dict[str, str] | None = None
+    source_model_label: dict[str, str] | None = None
+
+    if model_key == "portfolio_router":
+        from src.hk_equity.models.portfolio_router import (
+            load_portfolio_router_plan,
+        )
+
+        portfolio_tickers = list(
+            base_config["tickers"].keys()
+        )
+
+        router_plan = load_portfolio_router_plan(
+            model_config=model_config,
+            portfolio_tickers=portfolio_tickers,
+        )
+
+        for ticker, profile_name in (
+            router_plan["assignments"].items()
+        ):
+            profile_details = router_plan["profiles"][
+                profile_name
+            ]
+
+            child_model_config = profile_details[
+                "model_config"
+            ]
+
+            child_model_settings = child_model_config[
+                "model"
+            ]
+
+            if source_model_profile is None:
+                source_model_profile = {}
+            if source_model_run_id is None:
+                source_model_run_id = {}
+            if source_model_label is None:
+                source_model_label = {}
+
+            source_model_profile[ticker] = profile_name
+            source_model_run_id[ticker] = child_model_settings[
+                "run_id"
+            ]
+            source_model_label[ticker] = child_model_settings.get(
+                "label",
+                child_model_settings["name"],
+            )
+
     forecast_table = build_forecast_table(
         predicted_return=predicted_return,
         tickers=base_config["tickers"],
         context=context,
         model_config=model_config,
         model_label=model_label,
+        source_model_profile=source_model_profile,
+        source_model_run_id=source_model_run_id,
+        source_model_label=source_model_label,
     )
 
     forecast_date = context.data_cutoff.date().isoformat()

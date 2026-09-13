@@ -12,6 +12,9 @@ def build_forecast_table(
     context: ForecastContext,
     model_config: dict,
     model_label: str,
+    source_model_profile: dict[str, str] | None = None,
+    source_model_run_id: dict[str, str] | None = None,
+    source_model_label: dict[str, str] | None = None,
 ) -> pd.DataFrame:
     """Build one standardised Project 1 forecast table.
 
@@ -74,6 +77,33 @@ def build_forecast_table(
         "latest_weekly_close_hkd": latest_weekly_close.values,
         "predicted_weekly_return": predicted_return.values,
     })
+
+    if source_model_profile is not None:
+        forecast_table["source_model_profile"] = [
+            source_model_profile.get(
+                ticker,
+                model_name,
+            )
+            for ticker in ticker_list
+        ]
+
+    if source_model_run_id is not None:
+        forecast_table["source_model_run_id"] = [
+            source_model_run_id.get(
+                ticker,
+                model_config["model"]["run_id"],
+            )
+            for ticker in ticker_list
+        ]
+
+    if source_model_label is not None:
+        forecast_table["source_model_label"] = [
+            source_model_label.get(
+                ticker,
+                model_label,
+            )
+            for ticker in ticker_list
+        ]
 
     # Add all model parameters as output columns for auditability.
     # Example: parameter_lookback_weeks = 4

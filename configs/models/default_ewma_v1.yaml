@@ -1,8 +1,0 @@
-model:
-  name: ewma
-  label: Default EWMA Span 4 V1
-  version: "v1"
-  run_id: default_ewma_v1
-
-parameters:
-  span_weeks: 4

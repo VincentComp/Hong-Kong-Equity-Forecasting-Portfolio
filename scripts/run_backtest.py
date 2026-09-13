@@ -203,6 +203,10 @@ def create_prediction_table(
     tickers: dict[str, str],
     model_label: str,
     model_key: str,
+    model_run_id: str,
+    source_model_profile: dict[str, str] | None = None,
+    source_model_run_id: dict[str, str] | None = None,
+    source_model_label: dict[str, str] | None = None,
 ) -> pd.DataFrame:
     """Convert wide actual/predicted return tables into a long audit table."""
 
@@ -254,12 +258,13 @@ def create_prediction_table(
 
             error = predicted_return - actual_return
 
-            records.append({
+            row = {
                 "week_ending": week_ending.date().isoformat(),
                 "ticker": ticker,
                 "company": tickers[ticker],
                 "model": model_label,
                 "model_key": model_key,
+                "model_run_id": model_run_id,
                 "actual_weekly_return": actual_return,
                 "predicted_weekly_return": predicted_return,
                 "forecast_error": error,
@@ -269,7 +274,33 @@ def create_prediction_table(
                     np.sign(predicted_return)
                     == np.sign(actual_return)
                 ),
-            })
+            }
+
+            if source_model_profile is not None:
+                row["source_model_profile"] = (
+                    source_model_profile.get(
+                        ticker,
+                        model_key,
+                    )
+                )
+
+            if source_model_run_id is not None:
+                row["source_model_run_id"] = (
+                    source_model_run_id.get(
+                        ticker,
+                        model_run_id,
+                    )
+                )
+
+            if source_model_label is not None:
+                row["source_model_label"] = (
+                    source_model_label.get(
+                        ticker,
+                        model_label,
+                    )
+                )
+
+            records.append(row)
 
     prediction_table = pd.DataFrame(records)# return the every-week result dataframe
 
@@ -295,6 +326,52 @@ def main() -> None:
     model_key = model_config["model"]["name"]
     model_run_id = model_config["model"]["run_id"]
     model_label = get_model_label(model_config)
+
+    source_model_profile: dict[str, str] | None = None
+    source_model_run_id: dict[str, str] | None = None
+    source_model_label: dict[str, str] | None = None
+
+    if model_key == "portfolio_router":
+        from src.hk_equity.models.portfolio_router import (
+            load_portfolio_router_plan,
+        )
+
+        portfolio_tickers = list(
+            base_config["tickers"].keys()
+        )
+
+        router_plan = load_portfolio_router_plan(
+            model_config=model_config,
+            portfolio_tickers=portfolio_tickers,
+        )
+
+        source_model_profile = {}
+        source_model_run_id = {}
+        source_model_label = {}
+
+        for ticker, profile_name in (
+            router_plan["assignments"].items()
+        ):
+            profile_details = router_plan["profiles"][
+                profile_name
+            ]
+
+            child_model_config = profile_details[
+                "model_config"
+            ]
+
+            child_model_settings = child_model_config[
+                "model"
+            ]
+
+            source_model_profile[ticker] = profile_name
+            source_model_run_id[ticker] = child_model_settings[
+                "run_id"
+            ]
+            source_model_label[ticker] = child_model_settings.get(
+                "label",
+                child_model_settings["name"],
+            )
 
     # Use command-line dates if supplied; otherwise use official test period.
     evaluation_start = (#get the start date -> if not specify, use base.yaml
@@ -373,8 +450,11 @@ def main() -> None:
         tickers=base_config["tickers"],
         model_label=model_label,
         model_key=model_key,
+        model_run_id=model_run_id,
+        source_model_profile=source_model_profile,
+        source_model_run_id=source_model_run_id,
+        source_model_label=source_model_label,
     )
-    prediction_table["model_run_id"] = model_run_id
 
     # Calculate model metrics separately for each stock.
     metrics_rows = []
@@ -388,14 +468,41 @@ def main() -> None:
             predicted=ticker_data["predicted_weekly_return"],
         )
 
-        metrics_rows.append({
+        row = {
             "ticker": ticker,
             "company": base_config["tickers"][ticker],
             "model": model_label,
             "model_key": model_key,
             "model_run_id": model_run_id,
-            **ticker_metrics,
-        })
+        }
+
+        if source_model_profile is not None:
+            row["source_model_profile"] = (
+                source_model_profile.get(
+                    ticker,
+                    model_key,
+                )
+            )
+
+        if source_model_run_id is not None:
+            row["source_model_run_id"] = (
+                source_model_run_id.get(
+                    ticker,
+                    model_run_id,
+                )
+            )
+
+        if source_model_label is not None:
+            row["source_model_label"] = (
+                source_model_label.get(
+                    ticker,
+                    model_label,
+                )
+            )
+
+        row.update(ticker_metrics)
+
+        metrics_rows.append(row)
 
     metrics_by_stock = (#sort the result with MAE
         pd.DataFrame(metrics_rows)

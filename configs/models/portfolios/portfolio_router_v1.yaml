@@ -9,13 +9,13 @@ model:
 # its prediction only for the tickers assigned below.
 profiles:
   hsbc_ridge:
-    config_path: configs/models/hsbc_ridge_v1.yaml
+    config_path: configs/models/regression/groups/hsbc_ridge_v1.yaml
 
   banks_lasso:
-    config_path: configs/models/banks_lasso_v1.yaml
+    config_path: configs/models/regression/groups/banks_lasso_v1.yaml
 
   default_ewma:
-    config_path: configs/models/default_ewma_v1.yaml
+    config_path: configs/models/universal/ewma_span4_v1.yaml
 
 # Every portfolio ticker in base.yaml must appear exactly once.
 # ^HSI must never appear here because it is a benchmark only.
