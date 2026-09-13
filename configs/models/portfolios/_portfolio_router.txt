@@ -1,0 +1,29 @@
+model:
+  name: portfolio_router
+  label: Portfolio Router V1    #<--- change this (show in the csv)
+  version: "v1"                 #<--- change this
+  run_id: portfolio_router_v1   #<--- change this (same as file name)
+
+profiles:       #<--- change this = define the model
+  hsbc_ridge:
+    config_path: configs/models/regression/groups/hsbc_ridge_v1.yaml
+
+  banks_lasso:
+    config_path: configs/models/regression/groups/banks_lasso_v1.yaml
+
+  default_ewma:
+    config_path: configs/models/universal/ewma_span4_v1.yaml
+
+assignments:  #<--- Assigne the model
+  "0005.HK": hsbc_ridge
+
+  "3988.HK": banks_lasso
+  "1398.HK": banks_lasso
+
+  "1113.HK": default_ewma
+  "0066.HK": default_ewma
+  "0700.HK": default_ewma
+  "0016.HK": default_ewma
+  "1810.HK": default_ewma
+  "9988.HK": default_ewma
+  "0981.HK": default_ewma

@@ -1,0 +1,63 @@
+model:
+  name: general_regression
+  label: Ridge Regression - Weekly V1 All Features    #<--- change this (show in the csv)
+  version: "v1"                                       #<--- change this
+  run_id: regression_v1                               #<--- change this (same as file name)
+
+parameters:
+  estimator: ridge            #<--- change this
+  alpha: 10.0                 #<--- change this
+  standardize: true           #<--- change this
+  polynomial_degree: 1        #<--- change this
+  fit_intercept: true         #<--- change this
+  minimum_training_weeks: 60  #<--- change this
+
+features:
+  feature_set: weekly_v1
+  feature_map_path: data/processed/weekly_features_weekly_v1.csv
+
+  selected_columns:           #<--- Choose feature
+    - return_lag_1
+    - return_lag_2
+    - return_lag_3
+    - return_lag_4
+    - return_lag_8
+    - return_lag_12
+    - return_lag_24
+    - return_lag_52
+    - rolling_mean_4
+    - rolling_std_4
+    - downside_deviation_4
+    - risk_adjusted_mean_4
+    - rolling_mean_12
+    - rolling_std_12
+    - downside_deviation_12
+    - risk_adjusted_mean_12
+    - rolling_mean_26
+    - rolling_std_26
+    - downside_deviation_26
+    - risk_adjusted_mean_26
+    - momentum_spread_4_12
+    - market_return_lag_1
+    - market_rolling_mean_4
+    - market_rolling_mean_12
+    - market_rolling_mean_26
+    - excess_return_lag_1
+    - excess_return_lag_2
+    - excess_return_lag_3
+    - excess_return_lag_4
+    - excess_return_lag_8
+    - excess_return_lag_12
+    - excess_return_lag_24
+    - excess_return_lag_52
+    - excess_rolling_mean_4
+    - excess_rolling_mean_12
+    - excess_rolling_mean_26
+    - return_lag_1_cs_z
+    - return_lag_4_cs_z
+    - return_lag_12_cs_z
+    - rolling_mean_4_cs_z
+    - rolling_mean_12_cs_z
+    - rolling_mean_26_cs_z
+    - risk_adjusted_mean_4_cs_z
+    - excess_return_lag_1_cs_z

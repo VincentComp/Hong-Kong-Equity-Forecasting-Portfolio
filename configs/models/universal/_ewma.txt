@@ -1,0 +1,8 @@
+model:
+  name: ewma
+  run_id: ewma_span4_v1     #<--- change this (same as file name)
+  label: 4-Week EWMA        #<--- change this (show in the csv)
+  version: v1               #<--- change this
+
+parameters:
+  span_weeks: 4             #<--- change this

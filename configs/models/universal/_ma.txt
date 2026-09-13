@@ -1,0 +1,8 @@
+model:
+  name: moving_average
+  run_id: ma_4w_v1              #<--- change this (same as file name)
+  label: 4-Week Moving Average  #<--- change this (show in the csv)
+  version: v1                   #<--- change this
+
+parameters:
+  lookback_weeks: 4             #<--- change this

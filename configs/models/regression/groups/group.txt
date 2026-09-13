@@ -1,0 +1,35 @@
+model:
+  name: general_regression
+  label: Banks Lasso Regression V1  #<--- change this (show in the csv)
+  version: "v1"                     #<--- change this
+  run_id: banks_lasso_v1            #<--- change this (same as file name)
+
+parameters:
+  estimator: lasso            #<--- change this
+  alpha: 0.001                #<--- change this
+  standardize: true           #<--- change this
+  polynomial_degree: 1        #<--- change this
+  fit_intercept: true         #<--- change this
+  max_iter: 10000             #<--- change this
+  minimum_training_weeks: 60  #<--- change this
+
+training:
+  tickers:      #<--- Choose the ticker this
+    - "3988.HK"
+    - "1398.HK"
+
+features:
+  feature_set: weekly_v1
+  feature_map_path: data/processed/weekly_features_weekly_v1.csv
+
+  selected_columns:   #<--- Choose Feature
+    - return_lag_1
+    - return_lag_4
+    - rolling_mean_4
+    - rolling_std_4
+    - downside_deviation_12
+    - market_return_lag_1
+    - market_rolling_mean_4
+    - excess_return_lag_1
+    - excess_return_lag_4
+    - return_lag_1_cs_z
