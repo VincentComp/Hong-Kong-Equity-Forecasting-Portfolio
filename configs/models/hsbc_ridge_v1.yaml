@@ -15,6 +15,11 @@ parameters:
   # This counts distinct historical target weeks, not individual stock rows.
   minimum_training_weeks: 60
 
+training:
+  # Fit this pooled regression using HSBC history only.
+  tickers:
+    - "0005.HK"
+
 features:
   # Must match configs/features/weekly_v1.yaml
   feature_set: weekly_v1

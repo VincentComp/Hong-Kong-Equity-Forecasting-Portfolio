@@ -15,6 +15,12 @@ parameters:
   # This counts distinct historical target weeks, not individual stock rows.
   minimum_training_weeks: 60
 
+training:
+  # Fit one pooled regression using Bank of China and ICBC history.
+  tickers:
+    - "3988.HK"
+    - "1398.HK"
+
 features:
   # Must match configs/features/weekly_v1.yaml
   feature_set: weekly_v1

@@ -172,6 +172,57 @@ def _get_selected_feature_columns(
 
     return selected_columns
 
+def _get_training_tickers(
+    parameters: dict[str, Any],
+    portfolio_tickers: list[str],
+) -> list[str]:
+    """Return validated regression training tickers from model YAML."""
+
+    configured_tickers = parameters.get(
+        "tickers",
+        "all",
+    )
+
+    if configured_tickers == "all":
+        return portfolio_tickers.copy()
+
+    if not isinstance(configured_tickers, list):
+        raise TypeError(
+            "training.tickers must be 'all' "
+            "or a YAML list."
+        )
+
+    training_tickers = [
+        str(ticker)
+        for ticker in configured_tickers
+    ]
+
+    if not training_tickers:
+        raise ValueError(
+            "training.tickers cannot be empty."
+        )
+
+    if len(training_tickers) != len(
+        set(training_tickers)
+    ):
+        raise ValueError(
+            "training.tickers contains duplicates."
+        )
+
+    invalid_tickers = [
+        ticker
+        for ticker in training_tickers
+        if ticker not in portfolio_tickers
+    ]
+
+    if invalid_tickers:
+        raise ValueError(
+            "training.tickers must contain portfolio "
+            "tickers only. Invalid tickers: "
+            f"{invalid_tickers}"
+        )
+
+    return training_tickers
 
 def _get_feature_map_path(
     parameters: dict[str, Any],
@@ -391,12 +442,33 @@ def get_regression_forecast(
         parameters=parameters,
     )
 
+    portfolio_tickers = list(
+        weekly_returns.columns
+    )
+
+    training_tickers = _get_training_tickers(
+        parameters=parameters,
+        portfolio_tickers=portfolio_tickers,
+    )
+
     feature_map = load_regression_feature_map(
         parameters=parameters,
     )
 
+    training_feature_map = feature_map.loc[
+        feature_map["ticker"].isin(
+            training_tickers
+        )
+    ].copy()
+
+    if training_feature_map.empty:
+        raise ValueError(
+            "No feature-map rows were found for "
+            f"training.tickers: {training_tickers}"
+        )
+
     _validate_feature_columns(
-        feature_table=feature_map,
+        feature_table=training_feature_map,
         selected_columns=selected_columns,
     )
 
@@ -470,7 +542,7 @@ def get_regression_forecast(
 
     return _validate_predictions(
         predictions=predictions,
-        tickers=list(weekly_returns.columns),
+        tickers=portfolio_tickers,
     )
 
 
@@ -522,6 +594,11 @@ def get_regression_backtest_forecasts(
         weekly_returns.columns
     )
 
+    training_tickers = _get_training_tickers(
+        parameters=parameters,
+        portfolio_tickers=portfolio_tickers,
+    )
+
     predictions = pd.DataFrame(
         index=weekly_returns.index,
         columns=portfolio_tickers,
@@ -544,7 +621,13 @@ def get_regression_backtest_forecasts(
             feature_map["target_week"] < target_week
         ].copy()
 
-        available_training_weeks = train_data[
+        training_data = train_data.loc[
+            train_data["ticker"].isin(
+                training_tickers
+            )
+        ].copy()
+
+        available_training_weeks = training_data[
             "target_week"
         ].nunique()
 
@@ -570,11 +653,11 @@ def get_regression_backtest_forecasts(
             parameters=parameters,
         )
 
-        X_train = train_data[
+        X_train = training_data[
             selected_columns
         ]
 
-        y_train = train_data["target"]
+        y_train = training_data["target"]
 
         X_test = (
             test_data
@@ -617,7 +700,7 @@ def get_regression_backtest_forecasts(
 def _get_regression_parameters(
     model_config: dict[str, Any],
 ) -> dict[str, Any]:
-    """Merge regression parameters and feature settings from model YAML."""
+    """Merge regression, feature, and training settings from model YAML."""
 
     parameters = model_config.get(
         "parameters",
@@ -629,11 +712,16 @@ def _get_regression_parameters(
         {},
     )
 
+    training_settings = model_config.get(
+        "training",
+        {},
+    )
+
     return {
         **parameters,
         **feature_settings,
+        **training_settings,
     }
-
 
 def regression_live_forecast(
     weekly_returns: pd.DataFrame,
