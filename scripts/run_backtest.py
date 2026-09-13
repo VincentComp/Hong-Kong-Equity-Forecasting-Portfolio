@@ -426,14 +426,28 @@ def main() -> None:
     }])
 
     # Evaluate whether the model ranks relatively stronger stocks correctly.
+    # Rank IC and Top-3 evaluation require one valid forecast for every
+    # portfolio stock in the same week.
+    complete_portfolio_dates = predicted_returns.dropna(
+        how="any"
+    ).index
+
+    portfolio_actual_returns = actual_returns.loc[
+        complete_portfolio_dates
+    ]
+
+    portfolio_predicted_returns = predicted_returns.loc[
+        complete_portfolio_dates
+    ]
+
     rank_ic_by_week = calculate_rank_ic_by_week(
-        actual_returns=actual_returns,
-        predicted_returns=predicted_returns,
+        actual_returns=portfolio_actual_returns,
+        predicted_returns=portfolio_predicted_returns,
     )
 
     top_3_by_week = calculate_top_n_return(
-        actual_returns=actual_returns,
-        predicted_returns=predicted_returns,
+        actual_returns=portfolio_actual_returns,
+        predicted_returns=portfolio_predicted_returns,
         top_n=3,
     )
 

@@ -33,6 +33,10 @@ from src.hk_equity.models.general_regression import (
     regression_live_forecast,
 )
 
+from src.hk_equity.models.portfolio_router import (
+    portfolio_router_backtest_forecast,
+    portfolio_router_live_forecast,
+)
 
 # =============================================================================
 # One adapter per model.
@@ -116,6 +120,18 @@ def get_model_forecast(
 ) -> pd.Series:
     """Generate one next-week predicted return for every stock."""
 
+    model_name = _get_model_name(
+        model_config=model_config,
+    )
+
+    if model_name == "portfolio_router":
+        return portfolio_router_live_forecast(
+            weekly_returns=weekly_returns,
+            model_config=model_config,
+            benchmark_returns=benchmark_returns,
+            child_forecast=get_model_forecast,
+        )
+
     adapter = _get_model_adapter(
         model_config=model_config,
     )
@@ -133,6 +149,18 @@ def get_backtest_forecasts(
     benchmark_returns: pd.Series | None = None,
 ) -> pd.DataFrame:
     """Generate historical one-step-ahead forecasts for every stock and week."""
+
+    model_name = _get_model_name(
+        model_config=model_config,
+    )
+
+    if model_name == "portfolio_router":
+        return portfolio_router_backtest_forecast(
+            weekly_returns=weekly_returns,
+            model_config=model_config,
+            benchmark_returns=benchmark_returns,
+            child_backtest_forecast=get_backtest_forecasts,
+        )
 
     adapter = _get_model_adapter(
         model_config=model_config,

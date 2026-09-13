@@ -1,0 +1,36 @@
+model:
+  name: general_regression
+  label: Banks Lasso Regression V1
+  version: "v1"
+  run_id: banks_lasso_v1
+
+parameters:
+  estimator: lasso
+  alpha: 0.001
+  standardize: true
+  polynomial_degree: 1
+  fit_intercept: true
+  max_iter: 10000
+
+  # This counts distinct historical target weeks, not individual stock rows.
+  minimum_training_weeks: 60
+
+features:
+  # Must match configs/features/weekly_v1.yaml
+  feature_set: weekly_v1
+
+  # This is the processed, point-in-time-safe training dataset.
+  feature_map_path: data/processed/weekly_features_weekly_v1.csv
+
+  # Model-specific feature selection.
+  selected_columns:
+    - return_lag_1
+    - return_lag_4
+    - rolling_mean_4
+    - rolling_std_4
+    - downside_deviation_12
+    - market_return_lag_1
+    - market_rolling_mean_4
+    - excess_return_lag_1
+    - excess_return_lag_4
+    - return_lag_1_cs_z

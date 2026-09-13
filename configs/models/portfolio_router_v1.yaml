@@ -1,0 +1,34 @@
+model:
+  name: portfolio_router
+  label: Portfolio Router V1
+  version: "v1"
+  run_id: portfolio_router_v1
+
+# Each profile points to one normal model YAML.
+# The router will run each unique profile once and select
+# its prediction only for the tickers assigned below.
+profiles:
+  hsbc_ridge:
+    config_path: configs/models/hsbc_ridge_v1.yaml
+
+  banks_lasso:
+    config_path: configs/models/banks_lasso_v1.yaml
+
+  default_ewma:
+    config_path: configs/models/default_ewma_v1.yaml
+
+# Every portfolio ticker in base.yaml must appear exactly once.
+# ^HSI must never appear here because it is a benchmark only.
+assignments:
+  "0005.HK": hsbc_ridge
+
+  "3988.HK": banks_lasso
+  "1398.HK": banks_lasso
+
+  "1113.HK": default_ewma
+  "0066.HK": default_ewma
+  "0700.HK": default_ewma
+  "0016.HK": default_ewma
+  "1810.HK": default_ewma
+  "9988.HK": default_ewma
+  "0981.HK": default_ewma
