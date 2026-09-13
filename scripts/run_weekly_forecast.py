@@ -29,6 +29,10 @@ from pathlib import Path
 import pandas as pd
 
 from src.hk_equity.data.context import build_forecast_context
+from src.hk_equity.data.preprocess import (
+    calculate_returns,
+    to_weekly_close,
+)
 from src.hk_equity.evaluation.forecast_table import build_forecast_table
 from src.hk_equity.models.registry import (
     get_model_forecast,
@@ -163,25 +167,26 @@ def build_benchmark_weekly_returns(
     data_cutoff: pd.Timestamp,
     weekly_frequency: str,
 ) -> pd.Series:
-    """Build weekly benchmark returns using data up to the forecast cutoff."""
+    """Build benchmark weekly returns using data up to the forecast cutoff."""
 
-    market_daily_close = market_daily_close.loc[:data_cutoff]
+    market_daily_close = market_daily_close.loc[
+        :data_cutoff
+    ]
 
     if market_daily_close.empty:
         raise ValueError(
-            "No market benchmark data is available before data_cutoff."
+            "No market benchmark data is available "
+            "before data_cutoff."
         )
 
-    market_daily_returns = (
-        market_daily_close
-        .pct_change()
-        .dropna()
+    market_weekly_close = to_weekly_close(
+        daily_close=market_daily_close.to_frame(),
+        weekly_frequency=weekly_frequency,
     )
 
     benchmark_weekly_returns = (
-        market_daily_returns
-        .resample(weekly_frequency)
-        .apply(lambda values: (1.0 + values).prod() - 1.0)
+        calculate_returns(market_weekly_close)
+        .iloc[:, 0]
         .dropna()
     )
 
@@ -197,7 +202,8 @@ def build_benchmark_weekly_returns(
         pd.DatetimeIndex,
     ):
         raise TypeError(
-            "benchmark_weekly_returns must have a DatetimeIndex."
+            "benchmark_weekly_returns must have "
+            "a DatetimeIndex."
         )
 
     return benchmark_weekly_returns
