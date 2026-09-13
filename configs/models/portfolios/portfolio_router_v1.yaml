@@ -17,18 +17,21 @@ profiles:
   default_ewma:
     config_path: configs/models/universal/ewma_span4_v1.yaml
 
+  banks_xgboost:
+    config_path: configs/models/tree_boosting/groups/banks_xgboost_v1.yaml
+
 # Every portfolio ticker in base.yaml must appear exactly once.
 # ^HSI must never appear here because it is a benchmark only.
 assignments:
   "0005.HK": hsbc_ridge
 
-  "3988.HK": banks_lasso
-  "1398.HK": banks_lasso
+  "3988.HK": banks_xgboost
+  "1398.HK": banks_xgboost
 
   "1113.HK": default_ewma
   "0066.HK": default_ewma
   "0700.HK": default_ewma
   "0016.HK": default_ewma
   "1810.HK": default_ewma
-  "9988.HK": default_ewma
-  "0981.HK": default_ewma
+  "9988.HK": banks_lasso
+  "0981.HK": banks_lasso

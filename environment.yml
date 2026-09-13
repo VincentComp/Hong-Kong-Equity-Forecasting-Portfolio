@@ -21,3 +21,4 @@ dependencies:
       - lightgbm
       - arch
       - tensorflow
+      - xgboost

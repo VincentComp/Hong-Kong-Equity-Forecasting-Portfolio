@@ -33,6 +33,11 @@ from src.hk_equity.models.general_regression import (
     regression_live_forecast,
 )
 
+from src.hk_equity.models.tree_boosting import (
+    tree_boosting_backtest_forecast,
+    tree_boosting_live_forecast,
+)
+
 from src.hk_equity.models.portfolio_router import (
     portfolio_router_backtest_forecast,
     portfolio_router_live_forecast,
@@ -64,6 +69,10 @@ MODEL_REGISTRY: dict[str, ModelAdapter] = {
     "general_regression": ModelAdapter(
         live_forecast=regression_live_forecast,
         backtest_forecast=regression_backtest_forecast,
+    ),
+        "tree_boosting": ModelAdapter(
+        live_forecast=tree_boosting_live_forecast,
+        backtest_forecast=tree_boosting_backtest_forecast,
     ),
 }
 
