@@ -15,7 +15,7 @@ Examples:
         --run-ids ma_4w_v1 ewma_span4_v1
 
 This script:
-1. Discovers all model configs in configs/models/*.yaml (or filtered by --run-ids).
+1. Recursively discovers all model configs in configs/models/**/*.yaml
 2. Checks whether each model already has a backtest result.
 3. Runs only missing backtests.
 4. Builds one summary table from the resulting CSV files.
@@ -26,7 +26,6 @@ It does not overwrite existing model results unless --force is used.
 from __future__ import annotations
 
 import argparse
-from glob import glob
 from pathlib import Path
 import subprocess
 import sys
@@ -38,10 +37,17 @@ def discover_model_configs(
     models_directory: str = "configs/models",
     selected_run_ids: list[str] | None = None,
 ) -> list[str]:
-    """Discover model YAML configs, optionally filtered by run_id."""
+    """Discover model YAML configs recursively, optionally by run_id."""
+
+    models_path = Path(
+        models_directory
+    )
 
     all_yaml_files = sorted(
-        glob(f"{models_directory}/*.yaml")
+        str(yaml_path)
+        for yaml_path in models_path.rglob(
+            "*.yaml"
+        )
     )
 
     if selected_run_ids is None: #if no specify then use all
@@ -120,7 +126,7 @@ def parse_arguments() -> argparse.Namespace:
         help=(
             "Optional model run_ids to filter which models to run. "
             "Matches against model['model']['run_id']. "
-            "If omitted, runs all *.yaml in configs/models/."
+            "If omitted, recursively runs all *.yaml under configs/models/."
         ),
     )
 
