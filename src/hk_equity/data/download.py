@@ -10,7 +10,7 @@ def download_close_prices(
     start_date: str,    
     output_dir: str,
 ) -> pd.DataFrame:
-    """Downloads daily closing prices for a list of tickers from Yahoo Finance and saves them to CSV.
+    """Downloads daily adjusted closing prices for a list of tickers from Yahoo Finance and saves them to CSV.
 
     Fetches historical daily close data starting from `start_date` up to the current day,
     preserves the requested ticker column order, exports timestamped and latest CSV copies
@@ -30,8 +30,8 @@ def download_close_prices(
             no internet connectivity).
 
     Example:
-        from src.hk_equity.data.download import download_close_prices
-        df = download_close_prices(
+        from src.hk_equity.data.download import adjusted_download_close_prices
+        df = adjusted_download_close_prices(
             tickers=['0700.HK', '9988.HK'],
             start_date='2024-01-01',
             output_dir='./'
@@ -65,19 +65,19 @@ def download_close_prices(
         raise RuntimeError("No data downloaded from yfinance.")
 
 
-    close_prices = raw_data["Close"].copy()                 #only get the close price
-    close_prices = close_prices.reindex(columns=tickers)    #Sort the stock name with the .ymal given order
-    close_prices.index = pd.to_datetime(close_prices.index) #convert the index column to datetime format
-    close_prices.index.name = "Date"
+    adjusted_close_prices = raw_data["Adj Close"].copy()             #only get the close price
+    adjusted_close_prices = adjusted_close_prices.reindex(columns=tickers)    #Sort the stock name with the .ymal given order
+    adjusted_close_prices.index = pd.to_datetime(adjusted_close_prices.index) #convert the index column to datetime format
+    adjusted_close_prices.index.name = "Date"
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    close_prices.to_csv( #Save daily
+    adjusted_close_prices.to_csv( #Save daily
         output_path / f"daily_close_{timestamp}.csv"
     )
 
-    close_prices.to_csv( #Save latest daily
+    adjusted_close_prices.to_csv( #Save latest daily
         output_path / "latest_daily_close.csv"
     )
 
-    return close_prices
+    return adjusted_close_prices

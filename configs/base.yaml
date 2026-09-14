@@ -18,7 +18,7 @@ market:
 
 data:
   source: "yfinance"
-  price_field: "Close"
+  price_field: "Adj Close"
   auto_adjust: false
   start_date: "2020-01-01"
 
