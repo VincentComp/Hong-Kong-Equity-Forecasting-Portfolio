@@ -117,10 +117,10 @@ fixed_parameters:
 
 output:
   run_id: smic_xgboost_mae_optuna_v1
-  output_directory: outputs/tuning
-
+  output_directory: outputs/tuning/smic_xgboost_mae_optuna_v1
+  
   # Persistent Optuna study storage.
-  storage_file: outputs/tuning/optuna_studies.db
+  storage_file: outputs/tuning/smic_xgboost_mae_optuna_v1/optuna_studies.db
 
   # false = fail if this study name already exists.
   # true = resume the same study if it already exists.
