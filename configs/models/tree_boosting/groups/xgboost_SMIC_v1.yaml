@@ -1,8 +1,8 @@
 model:
   name: tree_boosting
-  label: XGBoost V2
-  version: "v2"
-  run_id: xgboost_v2
+  label: XGBoost SMIC v1
+  version: "v1"
+  run_id: xgboost_SMIC_v1
 
 parameters:
   estimator: xgboost
