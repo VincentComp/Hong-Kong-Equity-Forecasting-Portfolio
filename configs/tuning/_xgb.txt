@@ -14,7 +14,7 @@ study:
 
 target:
   # Optuna evaluates only this stock's validation MAE.
-  base_ticker: "0981.HK" #SMIC
+  base_ticker: "0981.HK"
 
 evaluation:
   # Optuna uses this period to score each trial.
@@ -29,15 +29,15 @@ training:
   # Base stock is always included automatically.
   # Optuna selects a subset of peer candidates for pooled row training.
   peer_candidates:
-    - "3988.HK"  #Bank of China
-    - "1398.HK"  #ICBC
-    - "1113.HK"  #CK Asset Holdings
-    - "0066.HK"  #MTR Corporation
-    - "0005.HK"  #HSBC Holdings
-    - "0700.HK"  #Tencent Holdings
-    - "0016.HK"  #Sun Hung Kai Properties
-    - "1810.HK"  #Xiaomi-W
-    - "9988.HK"  #Alibaba Group Holding
+    - "0700.HK"
+    - "1810.HK"
+    - "9988.HK"
+    - "3988.HK"
+    - "1398.HK"
+    - "0005.HK"
+    - "1113.HK"
+    - "0016.HK"
+    - "0066.HK"
 
   # Total includes the base stock.
   min_total_tickers: 1

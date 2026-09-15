@@ -1,8 +1,9 @@
+#Change: Vadliate from 2020-2025 
 tuning:
   model_family: xgboost
   
 study:
-  name: smic_xgboost_mae_optuna_v1
+  name: smic_xgboost_mae_optuna_v2
 
   # Task 1: Optimize point-forecast accuracy for one base stock.
   objective: mae
@@ -19,7 +20,7 @@ target:
 evaluation:
   # Optuna uses this period to score each trial.
   # Historical rows before each target week remain available for training.
-  start: "2025-01-01"
+  start: "2020-01-01"
   end: "2025-12-31"
 
 training:
@@ -29,15 +30,15 @@ training:
   # Base stock is always included automatically.
   # Optuna selects a subset of peer candidates for pooled row training.
   peer_candidates:
-    - "3988.HK"  #Bank of China
-    - "1398.HK"  #ICBC
-    - "1113.HK"  #CK Asset Holdings
-    - "0066.HK"  #MTR Corporation
-    - "0005.HK"  #HSBC Holdings
-    - "0700.HK"  #Tencent Holdings
-    - "0016.HK"  #Sun Hung Kai Properties
-    - "1810.HK"  #Xiaomi-W
-    - "9988.HK"  #Alibaba Group Holding
+    - "3988.HK" #Bank of China
+    - "1398.HK" #ICBC
+    - "1113.HK" #CK Asset Holdings
+    - "0066.HK" #MTR Corporation
+    - "0005.HK" #HSBC Holdings
+    - "0700.HK" #Tencent Holdings
+    - "0016.HK" #Sun Hung Kai Properties
+    - "1810.HK" #Xiaomi-W
+    - "9988.HK" #Alibaba Group Holding
 
   # Total includes the base stock.
   min_total_tickers: 1
@@ -141,11 +142,11 @@ fixed_parameters:
   n_jobs: -1
 
 output:
-  run_id: smic_xgboost_mae_optuna_v1
-  output_directory: outputs/tuning/smic_xgboost_mae_optuna_v1
-  
+  run_id: smic_xgboost_mae_optuna_v2
+  output_directory: outputs/tuning/smic_xgboost_mae_optuna_v2
+ 
   # Persistent Optuna study storage.
-  storage_file: outputs/tuning/smic_xgboost_mae_optuna_v1/optuna_studies.db
+  storage_file: outputs/tuning/smic_xgboost_mae_optuna_v2/optuna_studies.db
 
   # false = fail if this study name already exists.
   # true = resume the same study if it already exists.

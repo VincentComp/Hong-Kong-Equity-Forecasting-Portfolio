@@ -2,7 +2,7 @@ tuning:
   model_family: xgboost
   
 study:
-  name: smic_xgboost_mae_optuna_v1
+  name: alibaba_xgboost_mae_optuna_v1
 
   # Task 1: Optimize point-forecast accuracy for one base stock.
   objective: mae
@@ -14,7 +14,7 @@ study:
 
 target:
   # Optuna evaluates only this stock's validation MAE.
-  base_ticker: "0981.HK" #SMIC
+  base_ticker: "9988.HK"  #Alibaba Group Holding
 
 evaluation:
   # Optuna uses this period to score each trial.
@@ -37,7 +37,8 @@ training:
     - "0700.HK"  #Tencent Holdings
     - "0016.HK"  #Sun Hung Kai Properties
     - "1810.HK"  #Xiaomi-W
-    - "9988.HK"  #Alibaba Group Holding
+    - "0981.HK"  #SMIC
+
 
   # Total includes the base stock.
   min_total_tickers: 1
@@ -141,11 +142,11 @@ fixed_parameters:
   n_jobs: -1
 
 output:
-  run_id: smic_xgboost_mae_optuna_v1
-  output_directory: outputs/tuning/smic_xgboost_mae_optuna_v1
+  run_id: alibaba_xgboost_mae_optuna_v1
+  output_directory: outputs/tuning/alibaba_xgboost_mae_optuna_v1
   
   # Persistent Optuna study storage.
-  storage_file: outputs/tuning/smic_xgboost_mae_optuna_v1/optuna_studies.db
+  storage_file: outputs/tuning/alibaba_xgboost_mae_optuna_v1/optuna_studies.db
 
   # false = fail if this study name already exists.
   # true = resume the same study if it already exists.
