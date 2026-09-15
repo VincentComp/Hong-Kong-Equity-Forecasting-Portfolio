@@ -1,3 +1,6 @@
+tuning:
+  model_family: regression
+
 study:
   name: smic_regression_mae_optuna_v1
 

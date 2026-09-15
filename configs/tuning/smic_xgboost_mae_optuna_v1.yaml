@@ -1,3 +1,6 @@
+tuning:
+  model_family: xgboost
+  
 study:
   name: smic_xgboost_mae_optuna_v1
 

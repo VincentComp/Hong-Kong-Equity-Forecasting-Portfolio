@@ -1,30 +1,23 @@
-"""Run one XGBoost Optuna tuning study from a YAML configuration file."""
+"""Run one Optuna tuning study (XGBoost or regression) from a YAML configuration file."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import time
 from pathlib import Path
+from typing import Any
 
 import optuna
+import yaml
 from tqdm.auto import tqdm
 
 from src.hk_equity.tuning.objectives import (
     get_objective_spec,
 )
-from src.hk_equity.tuning.xgboost_optuna import (
-    evaluate_xgboost_trial,
-    load_xgboost_tuning_config,
-    prepare_tuning_weekly_returns,
-)
 from src.hk_equity.utils.config import (
     load_yaml,
 )
-
-import json
-from typing import Any
-
-import yaml
 
 
 def dump_yaml(
@@ -33,21 +26,23 @@ def dump_yaml(
 ) -> None:
     """Write a Python object to a YAML file."""
 
-    with open(path, "w") as f:
+    with open(path, "w") as file:
         yaml.dump(
             data,
-            f,
+            file,
             default_flow_style=False,
             allow_unicode=True,
+            sort_keys=False,
         )
+
 
 def parse_arguments() -> argparse.Namespace:
     """Read command-line settings for one Optuna tuning run."""
 
     parser = argparse.ArgumentParser(
         description=(
-            "Run an XGBoost Optuna tuning study for one "
-            "base-stock objective."
+            "Run an Optuna tuning study (XGBoost or regression) "
+            "for one base-stock objective."
         )
     )
 
@@ -97,6 +92,7 @@ def parse_arguments() -> argparse.Namespace:
 
 def build_progress_callback(
     progress_bar: tqdm,
+    initial_trial_count: int,
 ):
     """Create an Optuna callback that updates terminal progress."""
 
@@ -108,38 +104,31 @@ def build_progress_callback(
 
         del trial
 
-        completed_trials = len(
-            study.trials
-        )
+        all_trials = study.trials
 
-        pruned_trials = sum(
-            trial_result.state
-            == optuna.trial.TrialState.PRUNED
-            for trial_result in study.trials
-        )
-
-        complete_trials = [
+        completed_trials = [
             trial_result
-            for trial_result in study.trials
+            for trial_result in all_trials
             if trial_result.state
             == optuna.trial.TrialState.COMPLETE
         ]
 
+        pruned_trials = sum(
+            trial_result.state
+            == optuna.trial.TrialState.PRUNED
+            for trial_result in all_trials
+        )
+
         postfix = {
-            "Complete": len(complete_trials),
+            "Complete": len(completed_trials),
             "Pruned": pruned_trials,
         }
 
-        if complete_trials:
-            postfix["Best"] = (
-                f"{study.best_value:.6f}"
-            )
+        if completed_trials:
+            postfix["Best"] = f"{study.best_value:.6f}"
 
-        progress_bar.n = completed_trials
-        progress_bar.set_postfix(
-            postfix,
-            refresh=True,
-        )
+        progress_bar.n = len(all_trials) - initial_trial_count
+        progress_bar.set_postfix(postfix, refresh=True)
         progress_bar.refresh()
 
     return callback
@@ -149,39 +138,44 @@ def print_study_summary(
     study: optuna.Study,
     elapsed_seconds: float,
     output_dir: Path,
-    output_settings: dict,
+    output_settings: dict[str, Any],
     base_ticker: str,
     objective_spec,
-    study_settings: dict,
+    study_settings: dict[str, Any],
     evaluation_start_date: str,
     evaluation_end_date: str,
     storage_url: str | None,
+    model_family: str,
 ) -> None:
     """Print one readable summary after a tuning study and export artifacts."""
 
     completed_trials = [
         trial
         for trial in study.trials
-        if trial.state
-        == optuna.trial.TrialState.COMPLETE
+        if trial.state == optuna.trial.TrialState.COMPLETE
     ]
 
     pruned_trials = [
         trial
         for trial in study.trials
-        if trial.state
-        == optuna.trial.TrialState.PRUNED
+        if trial.state == optuna.trial.TrialState.PRUNED
     ]
 
     failed_trials = [
         trial
         for trial in study.trials
-        if trial.state
-        == optuna.trial.TrialState.FAIL
+        if trial.state == optuna.trial.TrialState.FAIL
     ]
 
     print("\n" + "=" * 70)
-    print("OPTUNA TUNING COMPLETED")
+
+    if model_family == "xgboost":
+        print("OPTUNA XGBOOST TUNING COMPLETED")
+    elif model_family == "regression":
+        print("OPTUNA REGRESSION TUNING COMPLETED")
+    else:
+        print("OPTUNA TUNING COMPLETED")
+
     print("=" * 70)
     print(f"Study name: {study.study_name}")
     print(f"Total trials: {len(study.trials)}")
@@ -198,6 +192,7 @@ def print_study_summary(
         return
 
     best_trial = study.best_trial
+    best_model_config = best_trial.user_attrs["model_config"]
 
     print("\nBest objective value:")
     print(f"{study.best_value:.6f}")
@@ -205,59 +200,49 @@ def print_study_summary(
     print("\nBest trial number:")
     print(best_trial.number)
 
-    print("\nBest training tickers:")
-    print(
-        best_trial.user_attrs[
-            "training_tickers"
-        ]
-    )
-
-    print("\nBest selected feature columns:")
-    print(
-        best_trial.user_attrs[
-            "selected_columns"
-        ]
-    )
-
-    print("\nBest XGBoost hyperparameters:")
-    for parameter_name, parameter_value in (
-        best_trial.params.items()
-    ):
-        if (
-            parameter_name.startswith("use_peer_")
-            or parameter_name.startswith("use_feature_")
+    if model_family == "xgboost":
+        print("\nBest XGBoost hyperparameters:")
+        for parameter_name, parameter_value in (
+            best_model_config["parameters"].items()
         ):
-            continue
+            if (
+                parameter_name.startswith("use_peer_")
+                or parameter_name.startswith("use_feature_")
+            ):
+                continue
 
-        print(
-            f"{parameter_name}: "
-            f"{parameter_value}"
-        )
+            print(f"{parameter_name}: {parameter_value}")
 
-    # Export artifacts
-    trials_csv_name = output_settings.get(
-        "trials_csv",
-    )
+    elif model_family == "regression":
+        print("\nBest regression estimator:")
+        print(best_model_config["parameters"]["estimator"])
 
+        print("\nBest training tickers:")
+        print(best_trial.user_attrs["training_tickers"])
+
+        print("\nBest selected feature columns:")
+        print(best_trial.user_attrs["selected_columns"])
+
+        print("\nBest regression parameters:")
+        for parameter_name, parameter_value in (
+            best_model_config["parameters"].items()
+        ):
+            print(f"{parameter_name}: {parameter_value}")
+
+    trials_csv_name = output_settings.get("trials_csv")
     trials_csv_path = None
 
     if trials_csv_name:
         trials_csv_path = output_dir / trials_csv_name
-
         study.trials_dataframe().to_csv(
             trials_csv_path,
             index=False,
         )
-
-        print(
-            "Trials CSV: "
-            f"{trials_csv_path}"
-        )
+        print(f"Trials CSV: {trials_csv_path}")
 
     best_trial_json_name = output_settings.get(
-        "best_trial_json",
+        "best_trial_json"
     )
-
     best_trial_json_path = None
 
     if best_trial_json_name:
@@ -267,72 +252,30 @@ def print_study_summary(
             "number": best_trial.number,
             "value": best_trial.value,
             "params": best_trial.params,
+            "user_attrs": best_trial.user_attrs,
         }
 
-        with open(
-            best_trial_json_path,
-            "w",
-        ) as f:
-            json.dump(
-                best_trial_dict,
-                f,
-                indent=2,
-            )
+        with open(best_trial_json_path, "w") as file:
+            json.dump(best_trial_dict, file, indent=2)
 
-        print(
-            "Best trial JSON: "
-            f"{best_trial_json_path}"
-        )
+        print(f"Best trial JSON: {best_trial_json_path}")
 
     best_model_yaml_name = output_settings.get(
-        "best_model_config_yaml",
+        "best_model_config_yaml"
     )
-
     best_model_yaml_path = None
 
     if best_model_yaml_name:
         best_model_yaml_path = output_dir / best_model_yaml_name
-
-        best_training_tickers = best_trial.user_attrs[
-            "training_tickers"
-        ]
-
-        best_selected_features = best_trial.user_attrs[
-            "selected_columns"
-        ]
-
-        best_xgb_params = {
-            key: value
-            for key, value in best_trial.params.items()
-            if not (
-                key.startswith("use_peer_")
-                or key.startswith("use_feature_")
-            )
-        }
-
-        best_model_config = {
-            "base_ticker": base_ticker,
-            "objective": objective_spec.name,
-            "training_tickers": best_training_tickers,
-            "selected_feature_columns": best_selected_features,
-            "xgboost_params": best_xgb_params,
-        }
-
-        dump_yaml(
-            best_model_yaml_path,
-            best_model_config,
-        )
-
+        dump_yaml(best_model_yaml_path, best_model_config)
         print(
             "Best model config YAML: "
             f"{best_model_yaml_path}"
         )
 
     tuning_metadata_name = output_settings.get(
-        "tuning_metadata_json",
+        "tuning_metadata_json"
     )
-
-    tuning_metadata_path = None
 
     if tuning_metadata_name:
         tuning_metadata_path = output_dir / tuning_metadata_name
@@ -344,26 +287,32 @@ def print_study_summary(
             "evaluation_start_date": evaluation_start_date,
             "evaluation_end_date": evaluation_end_date,
             "storage_file": storage_url,
-            "trials_csv": str(trials_csv_path) if trials_csv_path else None,
-            "best_trial_json": str(best_trial_json_path) if best_trial_json_path else None,
-            "best_model_config_yaml": str(best_model_yaml_path) if best_model_yaml_path else None,
+            "trials_csv": (
+                str(trials_csv_path)
+                if trials_csv_path
+                else None
+            ),
+            "best_trial_json": (
+                str(best_trial_json_path)
+                if best_trial_json_path
+                else None
+            ),
+            "best_model_config_yaml": (
+                str(best_model_yaml_path)
+                if best_model_yaml_path
+                else None
+            ),
             "total_trials": len(study.trials),
             "completed_trials": len(completed_trials),
             "pruned_trials": len(pruned_trials),
             "failed_trials": len(failed_trials),
             "best_trial_number": best_trial.number,
             "best_value": best_trial.value,
+            "model_family": model_family,
         }
 
-        with open(
-            tuning_metadata_path,
-            "w",
-        ) as f:
-            json.dump(
-                tuning_metadata,
-                f,
-                indent=2,
-            )
+        with open(tuning_metadata_path, "w") as file:
+            json.dump(tuning_metadata, file, indent=2)
 
         print(
             "Tuning metadata JSON: "
@@ -372,40 +321,58 @@ def print_study_summary(
 
 
 def main() -> None:
-    """Run one configured Optuna tuning study."""
+    """Run one configured Optuna tuning study (XGBoost or regression)."""
 
     args = parse_arguments()
 
-    optuna.logging.set_verbosity(
-        optuna.logging.WARNING
-    )
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-    base_config = load_yaml(
-        args.base_config,
-    )
+    base_config = load_yaml(args.base_config)
 
-    portfolio_tickers = list(
-        base_config["tickers"].keys()
-    )
+    portfolio_tickers = list(base_config["tickers"].keys())
 
-    tuning_config = load_xgboost_tuning_config(
+    tuning_config = load_yaml(args.tuning_config)
+
+    model_family = tuning_config["tuning"]["model_family"]
+
+    if model_family == "xgboost":
+        from src.hk_equity.tuning.xgboost_optuna import (
+            evaluate_xgboost_trial,
+            load_xgboost_tuning_config,
+            prepare_tuning_weekly_returns,
+        )
+
+        load_tuning_config = load_xgboost_tuning_config
+        evaluate_trial = evaluate_xgboost_trial
+
+    elif model_family == "regression":
+        from src.hk_equity.tuning.regression_optuna import (
+            evaluate_regression_trial,
+            load_regression_tuning_config,
+            prepare_tuning_weekly_returns,
+        )
+
+        load_tuning_config = load_regression_tuning_config
+        evaluate_trial = evaluate_regression_trial
+
+    else:
+        raise ValueError(
+            f"Unknown model_family: {model_family}. "
+            "Must be 'xgboost' or 'regression'."
+        )
+
+    tuning_config = load_tuning_config(
         config_path=args.tuning_config,
         portfolio_tickers=portfolio_tickers,
     )
 
-    study_settings = tuning_config[
-        "study"
-    ]
+    study_settings = tuning_config["study"]
 
     objective_spec = get_objective_spec(
-        objective_name=study_settings[
-            "objective"
-        ],
+        objective_name=study_settings["objective"],
     )
 
-    configured_trials = int(
-        study_settings["n_trials"]
-    )
+    configured_trials = int(study_settings["n_trials"])
 
     n_trials = (
         args.n_trials
@@ -418,30 +385,17 @@ def main() -> None:
             "--n-trials must be greater than zero."
         )
 
-    sampler_seed = int(
-        study_settings.get(
-            "sampler_seed",
-            42,
-        )
-    )
+    sampler_seed = int(study_settings.get("sampler_seed", 42))
 
-    sampler = optuna.samplers.TPESampler(
-        seed=sampler_seed,
-    )
+    sampler = optuna.samplers.TPESampler(seed=sampler_seed)
 
     output_settings = tuning_config["output"]
 
-    output_dir = Path(
-        output_settings["output_directory"]
-    )
-
-    output_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    output_dir = Path(output_settings["output_directory"])
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     configured_storage_file = output_settings.get(
-        "storage_file",
+        "storage_file"
     )
 
     storage_file = (
@@ -453,18 +407,9 @@ def main() -> None:
     storage_url = None
 
     if storage_file:
-        storage_path = Path(
-            storage_file
-        )
-
-        storage_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        storage_url = (
-            f"sqlite:///{storage_path}"
-        )
+        storage_path = Path(storage_file)
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        storage_url = f"sqlite:///{storage_path}"
 
     study = optuna.create_study(
         study_name=study_settings["name"],
@@ -472,25 +417,20 @@ def main() -> None:
         sampler=sampler,
         storage=storage_url,
         load_if_exists=bool(
-            output_settings.get(
-                "load_if_exists",
-                False,
-            )
+            output_settings.get("load_if_exists", False)
         ),
     )
 
+    initial_trial_count = len(study.trials)
+
     weekly_returns, benchmark_returns = (
-        prepare_tuning_weekly_returns(
-            base_config=base_config,
-        )
+        prepare_tuning_weekly_returns(base_config=base_config)
     )
 
-    def objective(
-        trial: optuna.Trial,
-    ) -> float:
-        """Evaluate one trial using the configured base-stock objective."""
+    def objective(trial: optuna.Trial) -> float:
+        """Evaluate one trial using the base-stock objective."""
 
-        return evaluate_xgboost_trial(
+        return evaluate_trial(
             trial=trial,
             tuning_config=tuning_config,
             weekly_returns=weekly_returns,
@@ -498,8 +438,9 @@ def main() -> None:
         )
 
     print("\n" + "=" * 70)
-    print("OPTUNA XGBOOST TUNING")
+    print("OPTUNA TUNING")
     print("=" * 70)
+    print(f"Model family: {model_family}")
     print(f"Study: {study.study_name}")
     print(
         "Base ticker: "
@@ -510,11 +451,9 @@ def main() -> None:
         f"{objective_spec.name} "
         f"({objective_spec.direction})"
     )
-    print(f"Trials: {n_trials}")
-    print(
-        "Storage: "
-        f"{storage_url or 'in-memory'}"
-    )
+    print(f"New trials: {n_trials}")
+    print(f"Existing trials: {initial_trial_count}")
+    print(f"Storage: {storage_url or 'in-memory'}")
     print(
         "Evaluation period: "
         f"{tuning_config['evaluation']['start']} to "
@@ -534,18 +473,14 @@ def main() -> None:
             timeout=args.timeout,
             callbacks=[
                 build_progress_callback(
-                    progress_bar
+                    progress_bar=progress_bar,
+                    initial_trial_count=initial_trial_count,
                 )
             ],
-            catch=(
-                ValueError,
-            ),
+            catch=(ValueError,),
         )
 
-    elapsed_seconds = (
-        time.perf_counter()
-        - start_time
-    )
+    elapsed_seconds = time.perf_counter() - start_time
 
     print_study_summary(
         study=study,
@@ -558,6 +493,7 @@ def main() -> None:
         evaluation_start_date=tuning_config["evaluation"]["start"],
         evaluation_end_date=tuning_config["evaluation"]["end"],
         storage_url=storage_url,
+        model_family=model_family,
     )
 
 
