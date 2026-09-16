@@ -1,0 +1,125 @@
+tuning:
+  model_family: xgboost
+study:
+  name: 1113_xgboost_mae_optuna_v1_stable
+  objective: mae
+  direction: minimize
+  n_trials: 200
+  sampler_seed: 42
+target:
+  base_ticker: 1113.HK
+evaluation:
+  start: '2025-01-01'
+  end: '2025-12-31'
+training:
+  minimum_training_weeks: 104
+  peer_candidates:
+  - 9988.HK
+  - 0066.HK
+  - 1398.HK
+  - 3988.HK
+  - 0981.HK
+  - 0005.HK
+  - 1810.HK
+  - 0016.HK
+  - 0700.HK
+  min_total_tickers: 1
+  max_total_tickers: 10
+features:
+  feature_set: weekly_v1
+  feature_map_path: data/processed/weekly_features_weekly_v1.csv
+  candidate_columns:
+  - return_lag_1
+  - return_lag_2
+  - return_lag_3
+  - return_lag_4
+  - return_lag_8
+  - return_lag_12
+  - return_lag_24
+  - return_lag_52
+  - rolling_mean_4
+  - rolling_std_4
+  - downside_deviation_4
+  - risk_adjusted_mean_4
+  - rolling_mean_12
+  - rolling_std_12
+  - downside_deviation_12
+  - risk_adjusted_mean_12
+  - rolling_mean_26
+  - rolling_std_26
+  - downside_deviation_26
+  - risk_adjusted_mean_26
+  - momentum_spread_4_12
+  - market_return_lag_1
+  - market_rolling_mean_4
+  - market_rolling_mean_12
+  - market_rolling_mean_26
+  - excess_return_lag_1
+  - excess_return_lag_2
+  - excess_return_lag_3
+  - excess_return_lag_4
+  - excess_return_lag_8
+  - excess_return_lag_12
+  - excess_return_lag_24
+  - excess_return_lag_52
+  - excess_rolling_mean_4
+  - excess_rolling_mean_12
+  - excess_rolling_mean_26
+  - return_lag_1_cs_z
+  - return_lag_4_cs_z
+  - return_lag_12_cs_z
+  - rolling_mean_4_cs_z
+  - rolling_mean_12_cs_z
+  - rolling_mean_26_cs_z
+  - risk_adjusted_mean_4_cs_z
+  - excess_return_lag_1_cs_z
+  min_features: 5
+  max_features: 20
+search_space:
+  n_estimators:
+    low: 40
+    high: 120
+    step: 10
+  max_depth:
+    low: 2
+    high: 4
+  learning_rate:
+    low: 0.005
+    high: 0.04
+    log: true
+  subsample:
+    low: 0.6
+    high: 0.9
+  colsample_bytree:
+    low: 0.6
+    high: 0.9
+  reg_alpha:
+    low: 0.001
+    high: 0.2
+    log: true
+  reg_lambda:
+    low: 0.001
+    high: 0.2
+    log: true
+  min_child_weight:
+    low: 2
+    high: 8
+fixed_parameters:
+  estimator: xgboost
+  random_state: 42
+  n_jobs: -1
+output:
+  run_id: 1113_xgboost_mae_optuna_v1_stable
+  output_directory: outputs/tuning/1113_xgboost_mae_optuna_v1_stable
+  storage_file: outputs/tuning/1113_xgboost_mae_optuna_v1_stable/optuna_studies.db
+  load_if_exists: true
+  trials_csv: trials.csv
+  best_trial_json: best_trial.json
+  best_model_config_yaml: best_model_config.yaml
+  tuning_metadata_json: tuning_metadata.json
+metadata:
+  base_ticker_name: CK Asset Holdings
+  tuning_version: v1
+  version_description: Recent-regime validation period from 2025-01-01 to 2025-12-31.
+  study_suffix: stable
+  note: HSI (^HSI) is excluded from base_ticker and peer_candidates. It remains benchmark-only.

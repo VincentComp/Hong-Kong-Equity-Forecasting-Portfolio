@@ -26,7 +26,9 @@ from src.hk_equity.utils.config import load_yaml
 # =============================================================================
 
 BASE_CONFIG_PATH = "configs/base.yaml"
-OUTPUT_DIRECTORY = Path("configs/tuning/generated")
+
+# Keep this separate from earlier generated configs and existing Optuna studies.
+OUTPUT_DIRECTORY = Path("configs/tuning/generated_stable")
 
 FEATURE_SET = "weekly_v1"
 FEATURE_MAP_PATH = "data/processed/weekly_features_weekly_v1.csv"
@@ -37,6 +39,9 @@ MAX_FEATURES = 20
 DEFAULT_N_TRIALS = 200
 SAMPLER_SEED = 42
 
+# Makes this batch independent from any earlier studies and SQLite databases.
+STUDY_SUFFIX = "stable"
+
 
 # =============================================================================
 # Version definitions
@@ -46,14 +51,18 @@ VERSION_PERIODS = {
     "v1": {
         "start": "2025-01-01",
         "end": "2025-12-31",
-        "description": "2025-only validation period.",
+        "description": (
+            "Recent-regime validation period from 2025-01-01 "
+            "to 2025-12-31."
+        ),
     },
     "v2": {
         "start": "2022-01-01",
         "end": "2025-12-31",
         "description": (
-            "Long-history validation period. Early weeks without "
-            "minimum_training_weeks are skipped by the objective."
+            "Long-history validation period from 2022-01-01 "
+            "to 2025-12-31. Each expanding-window forecast uses "
+            "only historical observations before its target week."
         ),
     },
 }
@@ -167,30 +176,31 @@ REGRESSION_SEARCH_SPACE = {
         "elastic_net",
     ],
     "ridge_alpha": {
-        "low": 0.001,
+        "low": 0.01,
         "high": 100.0,
         "log": True,
     },
     "lasso_alpha": {
-        "low": 0.00001,
+        "low": 0.0001,
         "high": 0.1,
         "log": True,
     },
     "elastic_net_alpha": {
-        "low": 0.00001,
+        "low": 0.0001,
         "high": 0.1,
         "log": True,
     },
     "elastic_net_l1_ratio": {
-        "low": 0.05,
-        "high": 0.95,
+        "low": 0.10,
+        "high": 0.90,
     },
 }
 
 REGRESSION_FIXED_PARAMETERS = {
     "standardize": True,
     "fit_intercept": True,
-    "max_iter": 10000,
+    "max_iter": 30000,
+    "tol": 0.0001,
 }
 
 
@@ -208,7 +218,8 @@ def get_study_name(
     ticker_id = ticker.replace(".HK", "").lower()
 
     return (
-        f"{ticker_id}_{model_family}_mae_optuna_{version}"
+        f"{ticker_id}_{model_family}_mae_optuna_"
+        f"{version}_{STUDY_SUFFIX}"
     )
 
 
@@ -233,6 +244,28 @@ def get_output_settings(
     }
 
 
+def get_model_settings(
+    model_family: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the search space and fixed parameters for one model family."""
+
+    if model_family == "xgboost":
+        return (
+            XGBOOST_SEARCH_SPACE,
+            XGBOOST_FIXED_PARAMETERS,
+        )
+
+    if model_family == "regression":
+        return (
+            REGRESSION_SEARCH_SPACE,
+            REGRESSION_FIXED_PARAMETERS,
+        )
+
+    raise ValueError(
+        f"Unknown model family: {model_family}"
+    )
+
+
 def build_tuning_config(
     ticker: str,
     ticker_name: str,
@@ -252,14 +285,6 @@ def build_tuning_config(
             f"Unknown version: {version}"
         )
 
-    if model_family not in {
-        "xgboost",
-        "regression",
-    }:
-        raise ValueError(
-            f"Unknown model family: {model_family}"
-        )
-
     peer_candidates = [
         peer_ticker
         for peer_ticker in portfolio_tickers
@@ -274,13 +299,11 @@ def build_tuning_config(
         version=version,
     )
 
-    if model_family == "xgboost":
-        search_space = XGBOOST_SEARCH_SPACE
-        fixed_parameters = XGBOOST_FIXED_PARAMETERS
-
-    else:
-        search_space = REGRESSION_SEARCH_SPACE
-        fixed_parameters = REGRESSION_FIXED_PARAMETERS
+    search_space, fixed_parameters = (
+        get_model_settings(
+            model_family=model_family,
+        )
+    )
 
     return {
         "tuning": {
@@ -324,6 +347,7 @@ def build_tuning_config(
             "base_ticker_name": ticker_name,
             "tuning_version": version,
             "version_description": period["description"],
+            "study_suffix": STUDY_SUFFIX,
             "note": (
                 "HSI (^HSI) is excluded from base_ticker and "
                 "peer_candidates. It remains benchmark-only."
@@ -332,17 +356,161 @@ def build_tuning_config(
     }
 
 
+def validate_tuning_config(
+    config: dict[str, Any],
+    benchmark_ticker: str,
+) -> None:
+    """Validate one generated configuration before it is written."""
+
+    required_sections = {
+        "tuning",
+        "study",
+        "target",
+        "evaluation",
+        "training",
+        "features",
+        "search_space",
+        "fixed_parameters",
+        "output",
+        "metadata",
+    }
+
+    missing_sections = (
+        required_sections - set(config.keys())
+    )
+
+    if missing_sections:
+        raise KeyError(
+            "Generated config is missing sections: "
+            f"{sorted(missing_sections)}"
+        )
+
+    model_family = config["tuning"]["model_family"]
+
+    if model_family not in {
+        "xgboost",
+        "regression",
+    }:
+        raise ValueError(
+            f"Invalid model family: {model_family}"
+        )
+
+    base_ticker = config["target"]["base_ticker"]
+
+    peer_candidates = config["training"][
+        "peer_candidates"
+    ]
+
+    if base_ticker == benchmark_ticker:
+        raise ValueError(
+            "Benchmark cannot be the base ticker: "
+            f"{benchmark_ticker}"
+        )
+
+    if benchmark_ticker in peer_candidates:
+        raise ValueError(
+            "Benchmark cannot be a peer candidate: "
+            f"{benchmark_ticker}"
+        )
+
+    if base_ticker in peer_candidates:
+        raise ValueError(
+            "Base ticker must not be in peer_candidates: "
+            f"{base_ticker}"
+        )
+
+    if len(peer_candidates) != len(
+        set(peer_candidates)
+    ):
+        raise ValueError(
+            "peer_candidates contains duplicates: "
+            f"{base_ticker}"
+        )
+
+    min_features = config["features"][
+        "min_features"
+    ]
+
+    max_features = config["features"][
+        "max_features"
+    ]
+
+    candidate_columns = config["features"][
+        "candidate_columns"
+    ]
+
+    if min_features <= 0:
+        raise ValueError(
+            "min_features must be greater than zero."
+        )
+
+    if max_features < min_features:
+        raise ValueError(
+            "max_features must be at least min_features."
+        )
+
+    if max_features > len(candidate_columns):
+        raise ValueError(
+            "max_features cannot exceed number of "
+            "candidate columns."
+        )
+
+    evaluation_start = config["evaluation"]["start"]
+    evaluation_end = config["evaluation"]["end"]
+
+    if evaluation_start >= evaluation_end:
+        raise ValueError(
+            "evaluation.start must be earlier than "
+            "evaluation.end."
+        )
+
+    output = config["output"]
+
+    required_output_keys = {
+        "run_id",
+        "output_directory",
+        "storage_file",
+    }
+
+    missing_output_keys = (
+        required_output_keys - set(output.keys())
+    )
+
+    if missing_output_keys:
+        raise KeyError(
+            "output is missing keys: "
+            f"{sorted(missing_output_keys)}"
+        )
+
+
+def validate_output_paths(
+    output_paths: list[Path],
+) -> None:
+    """Fail before writing when any target config already exists."""
+
+    existing_paths = [
+        path
+        for path in output_paths
+        if path.exists()
+    ]
+
+    if existing_paths:
+        formatted_paths = "\n".join(
+            str(path)
+            for path in existing_paths
+        )
+
+        raise FileExistsError(
+            "Refusing to overwrite existing generated configs:\n"
+            f"{formatted_paths}"
+        )
+
+
 def write_tuning_config(
     config: dict[str, Any],
     output_path: Path,
 ) -> None:
-    """Save one YAML config without overwriting an existing file."""
-
-    if output_path.exists():
-        raise FileExistsError(
-            "Refusing to overwrite existing config: "
-            f"{output_path}"
-        )
+    """Save one validated YAML config."""
 
     with output_path.open(
         "w",
@@ -358,7 +526,7 @@ def write_tuning_config(
 
 
 def main() -> None:
-    """Create all 40 ticker-specific Optuna tuning YAML files."""
+    """Create all 40 stable ticker-specific Optuna tuning YAML files."""
 
     base_config = load_yaml(
         BASE_CONFIG_PATH
@@ -386,7 +554,7 @@ def main() -> None:
         exist_ok=True,
     )
 
-    generated_paths = []
+    config_records = []
 
     for model_family in [
         "xgboost",
@@ -405,6 +573,11 @@ def main() -> None:
                     version=version,
                 )
 
+                validate_tuning_config(
+                    config=config,
+                    benchmark_ticker=benchmark_ticker,
+                )
+
                 study_name = config["study"]["name"]
 
                 output_path = (
@@ -412,32 +585,50 @@ def main() -> None:
                     / f"{study_name}.yaml"
                 )
 
-                write_tuning_config(
-                    config=config,
-                    output_path=output_path,
+                config_records.append(
+                    (output_path, config)
                 )
 
-                generated_paths.append(
-                    output_path
-                )
+    output_paths = [
+        output_path
+        for output_path, _ in config_records
+    ]
 
-    print(
-        "\nGenerated tuning configurations:"
+    validate_output_paths(
+        output_paths=output_paths,
     )
 
-    for path in generated_paths:
-        print(path)
+    for output_path, config in config_records:
+        write_tuning_config(
+            config=config,
+            output_path=output_path,
+        )
 
     print(
-        f"\nTotal generated: {len(generated_paths)}"
+        "\nGenerated stable tuning configurations:"
+    )
+
+    for output_path, _ in config_records:
+        print(output_path)
+
+    print(
+        f"\nTotal generated: {len(config_records)}"
     )
 
     print(
         "\nVersion definitions:"
         "\nv1 = validation: 2025-01-01 to 2025-12-31"
         "\nv2 = validation: 2022-01-01 to 2025-12-31"
-        "\n     (early weeks are skipped until "
-        "minimum_training_weeks is satisfied)"
+        "\n     (each forecast trains only on earlier data)"
+    )
+
+    print(
+        "\nRegression refinement:"
+        "\n- Lasso alpha range: 0.0001 to 0.1"
+        "\n- Elastic Net alpha range: 0.0001 to 0.1"
+        "\n- Elastic Net l1_ratio range: 0.10 to 0.90"
+        "\n- max_iter: 30000"
+        "\n- tol: 0.0001"
     )
 
 
