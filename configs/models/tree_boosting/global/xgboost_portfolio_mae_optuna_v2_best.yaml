@@ -1,0 +1,88 @@
+model:
+  name: tree_boosting
+  label: XGBoost Global Portfolio Optuna V2 Best
+  version: v2
+  run_id: xgboost_portfolio_mae_optuna_v2_best
+parameters:
+  estimator: xgboost
+  random_state: 42
+  n_jobs: -1
+  n_estimators: 40
+  max_depth: 2
+  learning_rate: 0.0050810207611557
+  subsample: 0.65518407213237
+  colsample_bytree: 0.6904277810232377
+  reg_alpha: 0.005055584896629372
+  reg_lambda: 0.0978960123134593
+  min_child_weight: 3
+  minimum_training_weeks: 104
+training:
+  tickers:
+  - 9988.HK
+  - 0066.HK
+  - 1398.HK
+  - 3988.HK
+  - 0981.HK
+  - 0005.HK
+  - 1810.HK
+  - 0016.HK
+  - 1113.HK
+  - 0700.HK
+features:
+  feature_set: weekly_v1
+  feature_map_path: data/processed/weekly_features_weekly_v1.csv
+  selected_columns:
+  - return_lag_1
+  - return_lag_2
+  - return_lag_3
+  - return_lag_4
+  - return_lag_8
+  - return_lag_12
+  - return_lag_24
+  - return_lag_52
+  - rolling_mean_4
+  - rolling_std_4
+  - downside_deviation_4
+  - risk_adjusted_mean_4
+  - rolling_mean_12
+  - rolling_std_12
+  - downside_deviation_12
+  - risk_adjusted_mean_12
+  - rolling_mean_26
+  - rolling_std_26
+  - downside_deviation_26
+  - risk_adjusted_mean_26
+  - momentum_spread_4_12
+  - market_return_lag_1
+  - market_rolling_mean_4
+  - market_rolling_mean_12
+  - market_rolling_mean_26
+  - excess_return_lag_1
+  - excess_return_lag_2
+  - excess_return_lag_3
+  - excess_return_lag_4
+  - excess_return_lag_8
+  - excess_return_lag_12
+  - excess_return_lag_24
+  - excess_return_lag_52
+  - excess_rolling_mean_4
+  - excess_rolling_mean_12
+  - excess_rolling_mean_26
+  - return_lag_1_cs_z
+  - return_lag_4_cs_z
+  - return_lag_12_cs_z
+  - rolling_mean_4_cs_z
+  - rolling_mean_12_cs_z
+  - rolling_mean_26_cs_z
+  - risk_adjusted_mean_4_cs_z
+  - excess_return_lag_1_cs_z
+metadata:
+  tuning_scope: portfolio
+  model_family: xgboost
+  tuning_version: v2
+  source_study_directory: outputs/tuning/temp_portfolio_xgboost_mae_optuna_v2
+  source_model_run_id: temp_portfolio_xgboost_mae_optuna_v2_best
+  selection_rule: Frozen Optuna best model selected by equal-weight portfolio MAE
+    across all 10 portfolio stocks.
+  benchmark_rule: HSI (^HSI) is benchmark-only and is excluded from training.tickers
+    and portfolio predictions.
