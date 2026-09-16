@@ -1,0 +1,40 @@
+model:
+  name: general_regression
+  label: 3988.HK Regression Optuna v2_stable Best
+  version: v2_stable
+  run_id: 3988_regression_mae_optuna_v2_stable_best
+parameters:
+  standardize: true
+  fit_intercept: true
+  max_iter: 30000
+  tol: 0.0001
+  estimator: lasso
+  alpha: 0.0029712217231841506
+  minimum_training_weeks: 104
+training:
+  tickers:
+  - 3988.HK
+  - 1398.HK
+  - 0005.HK
+features:
+  feature_set: weekly_v1
+  feature_map_path: data/processed/weekly_features_weekly_v1.csv
+  selected_columns:
+  - return_lag_3
+  - return_lag_8
+  - return_lag_52
+  - rolling_mean_4
+  - downside_deviation_4
+  - risk_adjusted_mean_4
+  - rolling_std_12
+  - momentum_spread_4_12
+  - market_return_lag_1
+  - excess_return_lag_4
+  - excess_return_lag_8
+  - excess_rolling_mean_4
+  - excess_rolling_mean_26
+  - return_lag_1_cs_z
+  - rolling_mean_12_cs_z
+  - rolling_mean_26_cs_z
+  - risk_adjusted_mean_4_cs_z
+  - excess_return_lag_1_cs_z

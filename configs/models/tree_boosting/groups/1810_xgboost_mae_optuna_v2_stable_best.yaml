@@ -1,0 +1,45 @@
+model:
+  name: tree_boosting
+  label: 1810.HK XGBoost Optuna v2_stable Best
+  version: v2_stable
+  run_id: 1810_xgboost_mae_optuna_v2_stable_best
+parameters:
+  estimator: xgboost
+  random_state: 42
+  n_jobs: -1
+  n_estimators: 40
+  max_depth: 4
+  learning_rate: 0.03513299303722114
+  subsample: 0.889501858478422
+  colsample_bytree: 0.676785169300457
+  reg_alpha: 0.0016801900610089629
+  reg_lambda: 0.07357927630352196
+  min_child_weight: 8
+  minimum_training_weeks: 104
+training:
+  tickers:
+  - 1810.HK
+  - 0066.HK
+  - 0981.HK
+  - 0005.HK
+  - 1113.HK
+features:
+  feature_set: weekly_v1
+  feature_map_path: data/processed/weekly_features_weekly_v1.csv
+  selected_columns:
+  - return_lag_4
+  - rolling_mean_4
+  - downside_deviation_4
+  - risk_adjusted_mean_4
+  - rolling_mean_12
+  - risk_adjusted_mean_12
+  - rolling_std_26
+  - risk_adjusted_mean_26
+  - momentum_spread_4_12
+  - excess_return_lag_8
+  - excess_rolling_mean_12
+  - return_lag_4_cs_z
+  - return_lag_12_cs_z
+  - rolling_mean_4_cs_z
+  - rolling_mean_12_cs_z
+  - risk_adjusted_mean_4_cs_z

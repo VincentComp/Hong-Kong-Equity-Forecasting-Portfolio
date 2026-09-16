@@ -1,0 +1,46 @@
+model:
+  name: tree_boosting
+  label: 9988.HK XGBoost Optuna v1_stable Best
+  version: v1_stable
+  run_id: 9988_xgboost_mae_optuna_v1_stable_best
+parameters:
+  estimator: xgboost
+  random_state: 42
+  n_jobs: -1
+  n_estimators: 70
+  max_depth: 4
+  learning_rate: 0.032202403403353695
+  subsample: 0.7655622632917137
+  colsample_bytree: 0.8890861514030061
+  reg_alpha: 0.10651921209375115
+  reg_lambda: 0.003631348645149478
+  min_child_weight: 7
+  minimum_training_weeks: 104
+training:
+  tickers:
+  - 9988.HK
+  - 1398.HK
+  - 3988.HK
+  - 0981.HK
+  - 0016.HK
+  - 1113.HK
+features:
+  feature_set: weekly_v1
+  feature_map_path: data/processed/weekly_features_weekly_v1.csv
+  selected_columns:
+  - return_lag_1
+  - return_lag_24
+  - return_lag_52
+  - downside_deviation_4
+  - rolling_std_12
+  - downside_deviation_12
+  - risk_adjusted_mean_12
+  - risk_adjusted_mean_26
+  - market_return_lag_1
+  - market_rolling_mean_12
+  - excess_return_lag_3
+  - excess_return_lag_4
+  - excess_return_lag_8
+  - excess_return_lag_12
+  - risk_adjusted_mean_4_cs_z
+  - excess_return_lag_1_cs_z

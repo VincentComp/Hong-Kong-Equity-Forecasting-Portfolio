@@ -1,0 +1,42 @@
+model:
+  name: portfolio_router
+  label: Regression Optuna V2 Stable Portfolio
+  version: v2_stable
+  run_id: regression_optuna_v2_stable_portfolio
+profiles:
+  regression_9988_HK_v2:
+    config_path: configs/models/regression/groups/9988_regression_mae_optuna_v2_stable_best.yaml
+  regression_0066_HK_v2:
+    config_path: configs/models/regression/groups/0066_regression_mae_optuna_v2_stable_best.yaml
+  regression_1398_HK_v2:
+    config_path: configs/models/regression/groups/1398_regression_mae_optuna_v2_stable_best.yaml
+  regression_3988_HK_v2:
+    config_path: configs/models/regression/groups/3988_regression_mae_optuna_v2_stable_best.yaml
+  regression_0981_HK_v2:
+    config_path: configs/models/regression/groups/0981_regression_mae_optuna_v2_stable_best.yaml
+  regression_0005_HK_v2:
+    config_path: configs/models/regression/groups/0005_regression_mae_optuna_v2_stable_best.yaml
+  regression_1810_HK_v2:
+    config_path: configs/models/regression/groups/1810_regression_mae_optuna_v2_stable_best.yaml
+  regression_0016_HK_v2:
+    config_path: configs/models/regression/groups/0016_regression_mae_optuna_v2_stable_best.yaml
+  regression_1113_HK_v2:
+    config_path: configs/models/regression/groups/1113_regression_mae_optuna_v2_stable_best.yaml
+  regression_0700_HK_v2:
+    config_path: configs/models/regression/groups/0700_regression_mae_optuna_v2_stable_best.yaml
+assignments:
+  9988.HK: regression_9988_HK_v2
+  0066.HK: regression_0066_HK_v2
+  1398.HK: regression_1398_HK_v2
+  3988.HK: regression_3988_HK_v2
+  0981.HK: regression_0981_HK_v2
+  0005.HK: regression_0005_HK_v2
+  1810.HK: regression_1810_HK_v2
+  0016.HK: regression_0016_HK_v2
+  1113.HK: regression_1113_HK_v2
+  0700.HK: regression_0700_HK_v2
+metadata:
+  model_family: regression
+  tuning_version: v2
+  selection_rule: Each portfolio ticker uses its own frozen Optuna *_best model config.
+  benchmark_rule: HSI (^HSI) is benchmark-only and is excluded from assignments.

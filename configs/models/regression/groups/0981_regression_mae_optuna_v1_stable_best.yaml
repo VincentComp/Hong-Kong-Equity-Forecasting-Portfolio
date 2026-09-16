@@ -1,0 +1,42 @@
+model:
+  name: general_regression
+  label: 0981.HK Regression Optuna v1_stable Best
+  version: v1_stable
+  run_id: 0981_regression_mae_optuna_v1_stable_best
+parameters:
+  standardize: true
+  fit_intercept: true
+  max_iter: 30000
+  tol: 0.0001
+  estimator: elastic_net
+  alpha: 0.0001839455388608078
+  l1_ratio: 0.1009856072888581
+  minimum_training_weeks: 104
+training:
+  tickers:
+  - 0981.HK
+  - 1810.HK
+  - 0700.HK
+features:
+  feature_set: weekly_v1
+  feature_map_path: data/processed/weekly_features_weekly_v1.csv
+  selected_columns:
+  - return_lag_2
+  - return_lag_3
+  - return_lag_4
+  - return_lag_12
+  - risk_adjusted_mean_4
+  - downside_deviation_12
+  - risk_adjusted_mean_12
+  - rolling_mean_26
+  - rolling_std_26
+  - market_return_lag_1
+  - excess_return_lag_1
+  - excess_return_lag_3
+  - excess_return_lag_8
+  - excess_return_lag_12
+  - excess_rolling_mean_26
+  - return_lag_1_cs_z
+  - return_lag_12_cs_z
+  - rolling_mean_4_cs_z
+  - risk_adjusted_mean_4_cs_z

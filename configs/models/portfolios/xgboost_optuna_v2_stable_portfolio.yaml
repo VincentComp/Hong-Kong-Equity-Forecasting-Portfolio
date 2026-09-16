@@ -1,0 +1,42 @@
+model:
+  name: portfolio_router
+  label: XGBoost Optuna V2 Stable Portfolio
+  version: v2_stable
+  run_id: xgboost_optuna_v2_stable_portfolio
+profiles:
+  xgboost_9988_HK_v2:
+    config_path: configs/models/tree_boosting/groups/9988_xgboost_mae_optuna_v2_stable_best.yaml
+  xgboost_0066_HK_v2:
+    config_path: configs/models/tree_boosting/groups/0066_xgboost_mae_optuna_v2_stable_best.yaml
+  xgboost_1398_HK_v2:
+    config_path: configs/models/tree_boosting/groups/1398_xgboost_mae_optuna_v2_stable_best.yaml
+  xgboost_3988_HK_v2:
+    config_path: configs/models/tree_boosting/groups/3988_xgboost_mae_optuna_v2_stable_best.yaml
+  xgboost_0981_HK_v2:
+    config_path: configs/models/tree_boosting/groups/0981_xgboost_mae_optuna_v2_stable_best.yaml
+  xgboost_0005_HK_v2:
+    config_path: configs/models/tree_boosting/groups/0005_xgboost_mae_optuna_v2_stable_best.yaml
+  xgboost_1810_HK_v2:
+    config_path: configs/models/tree_boosting/groups/1810_xgboost_mae_optuna_v2_stable_best.yaml
+  xgboost_0016_HK_v2:
+    config_path: configs/models/tree_boosting/groups/0016_xgboost_mae_optuna_v2_stable_best.yaml
+  xgboost_1113_HK_v2:
+    config_path: configs/models/tree_boosting/groups/1113_xgboost_mae_optuna_v2_stable_best.yaml
+  xgboost_0700_HK_v2:
+    config_path: configs/models/tree_boosting/groups/0700_xgboost_mae_optuna_v2_stable_best.yaml
+assignments:
+  9988.HK: xgboost_9988_HK_v2
+  0066.HK: xgboost_0066_HK_v2
+  1398.HK: xgboost_1398_HK_v2
+  3988.HK: xgboost_3988_HK_v2
+  0981.HK: xgboost_0981_HK_v2
+  0005.HK: xgboost_0005_HK_v2
+  1810.HK: xgboost_1810_HK_v2
+  0016.HK: xgboost_0016_HK_v2
+  1113.HK: xgboost_1113_HK_v2
+  0700.HK: xgboost_0700_HK_v2
+metadata:
+  model_family: xgboost
+  tuning_version: v2
+  selection_rule: Each portfolio ticker uses its own frozen Optuna *_best model config.
+  benchmark_rule: HSI (^HSI) is benchmark-only and is excluded from assignments.
