@@ -1,0 +1,14 @@
+model:
+  name: ensemble
+  label: XGBoost Group V2 + Global V2 Ensemble
+  version: "group_global_v2"
+  run_id: xgboost_group_global_v2_ensemble
+
+components:
+  boost_group_v2:
+    config_path: configs/models/portfolios/xgboost_optuna_v2_stable_portfolio.yaml
+    weight: 0.50
+
+  boost_global_v2:
+    config_path: configs/models/tree_boosting/global/xgboost_portfolio_mae_optuna_v2_best.yaml
+    weight: 0.50

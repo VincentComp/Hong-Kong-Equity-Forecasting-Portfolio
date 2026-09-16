@@ -43,6 +43,10 @@ from src.hk_equity.models.portfolio_router import (
     portfolio_router_live_forecast,
 )
 
+from src.hk_equity.models.ensemble import (
+    ensemble_backtest_forecast,
+    ensemble_live_forecast,
+)
 # =============================================================================
 # One adapter per model.
 #
@@ -141,6 +145,14 @@ def get_model_forecast(
             child_forecast=get_model_forecast,
         )
 
+    if model_name == "ensemble":
+        return ensemble_live_forecast(
+            weekly_returns=weekly_returns,
+            model_config=model_config,
+            benchmark_returns=benchmark_returns,
+            child_forecast=get_model_forecast,
+        )
+
     adapter = _get_model_adapter(
         model_config=model_config,
     )
@@ -165,6 +177,14 @@ def get_backtest_forecasts(
 
     if model_name == "portfolio_router":
         return portfolio_router_backtest_forecast(
+            weekly_returns=weekly_returns,
+            model_config=model_config,
+            benchmark_returns=benchmark_returns,
+            child_backtest_forecast=get_backtest_forecasts,
+        )
+
+    if model_name == "ensemble":
+        return ensemble_backtest_forecast(
             weekly_returns=weekly_returns,
             model_config=model_config,
             benchmark_returns=benchmark_returns,
