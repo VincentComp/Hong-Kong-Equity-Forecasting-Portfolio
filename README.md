@@ -2,10 +2,13 @@
 
 > A configuration-driven forecasting system that combines stock-specific and pooled models to predict next Friday-ending weekly returns for ten Hong Kong equities.
 
+[![Report](https://img.shields.io/badge/Report-PDF-B31B1B?style=flat-square&logo=adobeacrobatreader&logoColor=white)](./Paper.pdf)
 ![Language](https://img.shields.io/badge/Language-Python-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Optimisation](https://img.shields.io/badge/Optimisation-Optuna-3A78C2?style=flat-square)
 ![Model](https://img.shields.io/badge/Model-XGBoost-EA6A47?style=flat-square)
 ![Task](https://img.shields.io/badge/Task-Weekly_Return_Forecasting-6A5ACD?style=flat-square)
+
+📄 **Read the full report:** [Optuna-Optimized Multi-Channel Machine Learning for Weekly Return Forecasting of Hong Kong Equities](./Paper.pdf)
 
 ## Overview
 
